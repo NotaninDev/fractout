@@ -1,0 +1,19 @@
+{
+  "name": "fractout",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "update": "tsc && vite build && butler push ./dist notaninart/test-project:html",
+    "ghpages_build": "tsc && vite build --mode include_frame"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "vite": "^6.4.1"
+  },
+  "dependencies": {
+    "lil-gui": "^0.18.2"
+  }
+}
