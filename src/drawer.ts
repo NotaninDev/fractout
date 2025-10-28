@@ -1,4 +1,4 @@
-import { Level, CellType, add, scale, levelNumber, getPlayerCoords } from "./internal";
+import { Level, CellType, add, scale, levelNumber, getPlayerCoords, mainLevel, timestepGlobal } from "./internal";
 
 export function lerp(a: number, b: number, t: number) {
     return a * (1 - t) + b * t;
@@ -77,6 +77,26 @@ export function setCellSize(canvasSize: number[], levelCenter: number[]) {
     cellSize = cellTextureSize * cellTextureRatio;
     textRatio = cellTextureRatio;
     topLeft = [levelCenter[0] - cellSize * levelDrawer.size[1] / 2, levelCenter[1] - cellSize * levelDrawer.size[0] / 2].map((x) => Math.round(x));
+}
+
+/**
+ * given coordinates in the window, return coordinates in the level
+ * @param coordsWindow [x, y]; absolute coordinates in the window
+ * @returns [row, column] if the input corresponds to a certain level coordinates. `null` otherwise.
+ */
+export function getLevelCoords(coordsWindow: Readonly<number[]>) {
+    // can't get the window coordinates correctly on the first frame
+    if (timestepGlobal === 0) {
+        return null;
+    }
+    if (coordsWindow.length !== 2) {
+        console.error(`input is size ${coordsWindow.length}; should be 2 instead`);
+        return null;
+    }
+    const row = Math.floor((coordsWindow[1] - topLeft[1]) / cellSize);
+    const column = Math.floor((coordsWindow[0] - topLeft[0]) / cellSize);
+    return (mainLevel.inMap([row, column]) && [CellType.Normal, CellType.Used].includes(mainLevel.cells[row][column])) ?
+        ([row, column] as const) : null;
 }
 
 function toRadian(x: number) { return x * Math.PI / 180; }

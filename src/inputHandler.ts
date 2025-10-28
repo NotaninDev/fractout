@@ -1,14 +1,23 @@
-import { Direction, editorMode, setEditorMode } from "./internal";
+import { Direction, editorMode, getLevelCoords, setEditorMode } from "./internal";
 
 export class InputHandler {
     blocked: boolean;
     currentKey: InputHandler.KeyName;
+    /**
+     * Mouse coordinates in the level where the mouse was clicked last time.
+     */
+    currentCoords: Readonly<number[]> | null;
+    mouseDownEventUnused: boolean;
+    mouseUpEventUnused: boolean;
     keyDownEventUnused: boolean;
     keyUpEventUnused: boolean;
     private keyDown: Record<InputHandler.KeyName, boolean>;
     constructor() {
         this.blocked = false;
+        this.currentCoords = null;
         this.currentKey = InputHandler.KeyName.None;
+        this.mouseDownEventUnused = false;
+        this.mouseUpEventUnused = false;
         this.keyDownEventUnused = false;
         this.keyUpEventUnused = false;
         this.keyDown = {
@@ -31,6 +40,24 @@ export class InputHandler {
         this.blocked = true;
     }
 
+
+    mouseDownListener(event: MouseEvent) {
+        this.mouseDownEventUnused = true;
+        this.mouseUpEventUnused = false;
+        this.currentCoords = getLevelCoords([event.offsetX, event.offsetY]);
+    }
+
+    mouseUpListener(event: MouseEvent) {
+        this.mouseDownEventUnused = false;
+        const currentCoords = getLevelCoords([event.offsetX, event.offsetY]);
+        if (currentCoords !== this.currentCoords) {
+            this.currentCoords = null;
+            this.mouseUpEventUnused = false;
+        }
+        else {
+            this.mouseUpEventUnused = true;
+        }
+    }
 
     keyDownListener(event: KeyboardEvent) {
         event.preventDefault();
@@ -106,20 +133,20 @@ export class InputHandler {
 
     private keycodeToName(keycode: string): InputHandler.KeyName {
         switch (keycode) {
-            case "ArrowUp":
-                return InputHandler.KeyName.Up;
-            case "ArrowRight":
-                return InputHandler.KeyName.Right;
-            case "ArrowDown":
-                return InputHandler.KeyName.Down;
-            case "ArrowLeft":
-                return InputHandler.KeyName.Left;
-            case "KeyR":
-                return InputHandler.KeyName.Restart;
-            case "KeyZ":
-                return InputHandler.KeyName.Undo;
-            case "KeyX":
-                return InputHandler.KeyName.Redo;
+            // case "ArrowUp":
+            //     return InputHandler.KeyName.Up;
+            // case "ArrowRight":
+            //     return InputHandler.KeyName.Right;
+            // case "ArrowDown":
+            //     return InputHandler.KeyName.Down;
+            // case "ArrowLeft":
+            //     return InputHandler.KeyName.Left;
+            // case "KeyR":
+            //     return InputHandler.KeyName.Restart;
+            // case "KeyZ":
+            //     return InputHandler.KeyName.Undo;
+            // case "KeyX":
+            //     return InputHandler.KeyName.Redo;
             // case "Digit8":
             //     return InputHandler.KeyName.Editor;
             default:

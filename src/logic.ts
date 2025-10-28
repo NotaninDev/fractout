@@ -127,8 +127,8 @@ export class Level {
         this.player = new Player(template.player).clone();
     }
 
-    inMap(position: number[]) {
-        return position[0] > 0 && position[0] < this.size[0] - 1 && position[1] > 0 && position[1] < this.size[1] - 1;
+    inMap(coords: Readonly<number[]>) {
+        return coords[0] > 0 && coords[0] < this.size[0] - 1 && coords[1] > 0 && coords[1] < this.size[1] - 1;
     }
 
     updateState() {

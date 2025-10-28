@@ -40,7 +40,6 @@ export let editorMode = false;
 export let levelNumber = 0;
 export let initialState = mainLevels[levelNumber];
 export let mainLevel = new Level(initialState);
-initializeDrawer(mainLevel);
 export function setLevel(n: number) {
   if (n < 0 || n >= mainLevels.length) {
     console.warn(`level ${n} does not exist`);
@@ -61,6 +60,7 @@ function updateCenter() {
   uiCenter = getUiCenter();
 }
 updateCenter();
+setLevel(levelNumber);
 
 export function setEditorMode(flag: boolean) {
   editorMode = flag;
@@ -120,6 +120,8 @@ function every_frame(cur_timestamp: number) {
   requestAnimationFrame(every_frame);
 }
 
+document.addEventListener("mousedown", inputHandler.mouseDownListener.bind(inputHandler));
+document.addEventListener("mouseup", inputHandler.mouseUpListener.bind(inputHandler));
 document.addEventListener("keydown", inputHandler.keyDownListener.bind(inputHandler));
 document.addEventListener("keyup", inputHandler.keyUpListener.bind(inputHandler));
 
