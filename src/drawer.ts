@@ -48,7 +48,6 @@ export const DESERT_PALETTE = ["#151244", "#60117f", "#922a95", "#be7dbc", "#350
 
 const notanTexture = await imageFromName('notan bird');
 const playerTexture = await imageFromName('example');
-const tileTexture = await imageFromName('tile');
 /** smallest possible size of the smallest brick */
 const minBrickSize = 8;
 /** smallest possible size of the root brick */
