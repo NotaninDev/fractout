@@ -1,4 +1,4 @@
-import { initialState, InputHandler, inputHandler, lerp, levelNumber, LevelTemplate, mainLevel, mainLevels, registerMoveAnim, registerStuckAnim, updateAnimationList } from "./internal";
+import { initialState, InputHandler, inputHandler, lerp, levelNumber, LevelTemplate, mainLevel, mainLevels, updateAnimationList } from "./internal";
 
 export const CENTURY_MILLISECONDS = 1000 * 60 * 60 * 24 * 366 * 100;
 
@@ -67,78 +67,214 @@ function generateRandomArray(size: number, rangeMin: number = 0, rangeMax: numbe
     return results;
 }
 
-export enum CellType {
-    Empty = 200,
-    Normal,
-    Used,
-    Wall,
-}
 
-export class Player implements Clonable<Player> {
-    /** [row, column] */
-    coords: Readonly<number[]>;
+/**
+ * counting root brick as 0.
+ * if the max depth is set to 9, the game needs at least 512px with each smallest brick size set to 1px.
+ */
+export const BRICK_MAX_DEPTH = 6;
 
-    constructor(template: PlayerTemplate) {
-        this.coords = Array.from(template.coords);
+export class Brick {
+    /** 0: top-left, 1: top-right, 2: bottom-left, 3: bottom-right */
+    holeIndex: number | null;
+    parent: Brick | null;
+    /** depth of the brick counting root as 0 */
+    depth: number;
+    /** top-left, top-right, bottom-left, bottom-right */
+    readonly children: (Brick | null)[];
+    readonly clickable: boolean[];
+
+    constructor(parent: Brick | null) {
+        this.holeIndex = null;
+        this.parent = parent;
+        this.depth = (parent === null) ? 0 : (parent.depth + 1);
+        this.children = [null, null, null, null];
+        this.clickable = [false, false, false, false];
     }
 
-    clone(): Player {
-        const clonedPlayer = new Player(new PlayerTemplate(
-            Array.from(this.coords)
-        ));
-        return clonedPlayer;
+    isIntact() {
+        return this.holeIndex === null;
+    }
+
+    /**
+     * break this brick
+     * @param breakIndex the index of a new hole
+     * @returns whether breaking succeeded
+     */
+    break(breakIndex: number) {
+        if (!this.isIntact()) {
+            console.error(`cannot break; has a hole in ${getPositionString(this.holeIndex)}`);
+            return false;
+        }
+        if (this.depth >= BRICK_MAX_DEPTH) {
+            return false;
+        }
+        for (let i = 0; i < this.children.length; i++) {
+            if (i === breakIndex) continue;
+            const childBrick = new Brick(this);
+            this.children[i] = childBrick;
+            for (let j = 0; j < childBrick.clickable.length; j++) {
+                childBrick.clickable[j] = true;
+            }
+        }
+        this.holeIndex = breakIndex;
+        return true;
+    }
+
+    /**
+     * undo breaking this brick
+     * @param force force unbreaking this brick
+     */
+    unbreak(force: boolean = false) {
+        if (!force) {
+            if (this.isIntact()) {
+                console.error("this brick is intact");
+                return;
+            }
+            for (let i = 0; i < this.children.length; i++) {
+                if (i === this.holeIndex) continue;
+                if (!this.children[i]?.isIntact()) {
+                    console.error(`child ${getPositionString(i)} is broken`);
+                    return;
+                }
+            }
+        }
+
+        for (let i = 0; i < this.children.length; i++) {
+            this.children[i] = null;
+        }
+        this.holeIndex = null;
     }
 }
-export class PlayerTemplate {
-    /** [row, column] */
-    readonly coords: Readonly<number[]>;
 
-    constructor(coords: number[]) {
+function getPositionString(i: number | null) {
+    switch (i) {
+        case 0:
+            return "top-left";
+        case 1:
+            return "top-right";
+        case 2:
+            return "bottom-left";
+        case 3:
+            return "bottom-right";
+        default:
+            return "invalid";
+    }
+}
+
+export class Coordinates {
+    /** 0-length array means the root, i.e. the first brick you would break. */
+    readonly path: Readonly<number[]>;
+    constructor(path: Readonly<number[]>) {
+        this.path = Array.from(path);
+    }
+}
+
+export class Target {
+    readonly level: Level;
+    readonly coords: Coordinates;
+
+    constructor(level: Level, coords: Coordinates) {
+        this.level = level;
         this.coords = coords;
+    }
+
+    /**
+     * tbd
+     * @returns whether this target's condition is satisfied
+     */
+    isSatisfied() {
+        return false;
     }
 }
 
 export class Level {
-    title!: string;
-    /** [row, column] */
-    size!: number[];
-    /** row, column */
-    cells!: CellType[][];
-    player!: Player;
+    rootBrick: Brick;
+    readonly targets!: Readonly<Target[]>;
 
+    /** tracks if any moves were made since the initial state */
     moved: boolean;
     win: boolean;
     undoStack: StateStack;
     redoStack: StateStack;
 
     constructor(template: LevelTemplate) {
-        this.loadLevel(template);
+        this.targets = template.targets.map(coords => new Target(this, coords));
 
+        this.rootBrick = new Brick(null);
+        for (let i = 0; i < this.rootBrick.clickable.length; i++) {
+            this.rootBrick.clickable[i] = true;
+        }
         this.win = false;
         this.moved = false;
         this.undoStack = new StateStack(this);
         this.redoStack = new StateStack(this);
     }
 
-    private loadLevel(template: LevelTemplate) {
-        this.title = template.title;
-        this.size = Array.from(template.size);
-        this.cells = Array.from(template.cells, row => Array.from(row));
-        this.player = new Player(template.player).clone();
+    /**
+     * @param rawCoords coordinates in the root brick scaled to [0, 1] on both axes; [x, y]
+     * @returns whether `rawCoords` is inside the level
+     */
+    inMap(rawCoords: Readonly<number[]>) {
+        return rawCoords[0] >= 0 && rawCoords[0] <= 1 && rawCoords[1] >= 0 && rawCoords[1] <= 1;
     }
 
-    inMap(coords: Readonly<number[]>) {
-        return coords[0] > 0 && coords[0] < this.size[0] - 1 && coords[1] > 0 && coords[1] < this.size[1] - 1;
+    /**
+     * converts raw coordinates to brick coordinates.
+     * @param rawCoords coordinates in the root brick scaled to [0, 1] on both axes; [x, y]
+     * @returns brick coordinates of the child of the now-intact brick, if such brick exists. null otherwise.
+     */
+    toBrickCoords(rawCoords: Readonly<number[]>) {
+        if (!this.inMap(rawCoords)) return null;
+
+        let currentBrick: Brick | null = this.rootBrick;
+        let scaledCoords = Array.from(rawCoords);
+        const brickPath = [];
+        while (currentBrick !== null) {
+            const isLeft = scaledCoords[0] < .5;
+            const isUp = scaledCoords[1] < .5;
+            const childIndex = (isLeft ? 0 : 1) + (isUp ? 0 : 2);
+            currentBrick = currentBrick.children[childIndex];
+            scaledCoords[0] = scaledCoords[0] * 2 - (isLeft ? 0 : 1);
+            scaledCoords[1] = scaledCoords[1] * 2 - (isUp ? 0 : 1);
+            brickPath.push(childIndex);
+        }
+        return new Coordinates(brickPath);
+    }
+
+    /**
+     * get brick by coordinates. returns `null` if invalid coordinates is given.
+     */
+    getBrickByCoords(coords: Coordinates) {
+        let currentBrick: Brick | null = this.rootBrick;
+        for (let i = 0; i < coords.path.length && currentBrick !== null; i++) {
+            currentBrick = currentBrick.children[coords.path[i]];
+        }
+        return currentBrick;
     }
 
     updateState() {
         updateAnimationList();
 
-        if (inputHandler.keyDownEventUnused) {
-            inputHandler.keyDownEventUnused = false;
-            const direction = inputHandler.getCurrentDirection();
-            if (direction !== undefined) {
-                this.attemptMove(direction);
+        if (inputHandler.mouseDownEventUnused) {
+            inputHandler.mouseDownEventUnused = false;
+
+            // assuming left click; right click is not implemented yet
+            if (inputHandler.currentCoords !== null) {
+                const brickCoords = this.toBrickCoords(inputHandler.currentCoords);
+                console.log(`brick coords: ${brickCoords?.path}`);
+                console.log(`length ${brickCoords?.path.length}`);
+                if (brickCoords !== null) {
+                    const clickedBrick = this.getBrickByCoords(new Coordinates(brickCoords.path.slice(0, -1)));
+                    if (clickedBrick !== null && clickedBrick.isIntact()) {
+                        if (clickedBrick.depth >= BRICK_MAX_DEPTH) {
+                            console.log("can't break; too small!");
+                        }
+                        else if (clickedBrick.break(brickCoords.path[brickCoords.path.length - 1])) {
+                            // todo: push to undoStack
+                        }
+                    }
+                }
             }
             else if (inputHandler.currentKey === InputHandler.KeyName.Undo) {
                 if (this.undoStack.hasDiffs()) {
@@ -166,18 +302,8 @@ export class Level {
                 if (this.moved) {
                     this.undoStack.nextDiff.moved = this.moved;
                     this.moved = false;
-                    if (this.player.coords !== initialState.player.coords) {
-                        this.undoStack.nextDiff.setPlayerCoords(this.player.coords);
-                        this.player.coords = initialState.player.coords;
-                    }
-                    for (let row = 0; row < this.size[0]; row++) {
-                        for (let column = 0; column < this.size[1]; column++) {
-                            if (this.cells[row][column] !== initialState.cells[row][column]) {
-                                this.undoStack.nextDiff.pushCell([row, column], this.cells[row][column]);
-                                this.cells[row][column] = initialState.cells[row][column];
-                            }
-                        }
-                    }
+
+                    // todo: record current state and reset
 
                     this.undoStack.commit();
                     this.redoStack.clear();
@@ -187,51 +313,12 @@ export class Level {
         }
     }
 
-    private attemptMove(direction: Direction) {
-        const nextCell = add(this.player.coords, directionVectors[direction]);
-        const canMove: boolean = this.inMap(nextCell) && this.cells[nextCell[0]][nextCell[1]] === CellType.Normal;
-        if (canMove) {
-            registerMoveAnim(mainLevel, direction);
-
-            if (!this.moved) {
-                this.undoStack.nextDiff.moved = this.moved;
-            }
-            this.undoStack.nextDiff.setPlayerCoords(mainLevel.player.coords);
-            this.undoStack.nextDiff.pushCell(nextCell, this.cells[nextCell[0]][nextCell[1]]);
-            this.undoStack.commit();
-            this.redoStack.clear();
-
-            this.moved = true;
-            this.player.coords = nextCell;
-            this.cells[nextCell[0]][nextCell[1]] = CellType.Used;
-
-            this.updateWin();
-        }
-        else {
-            registerStuckAnim(mainLevel, direction);
-        }
-    }
-
     /**
      * update win state
      */
     private updateWin() {
-        this.win = true;
-        for (let i = 0; i < this.size[0] && this.win; i++) {
-            for (let j = 0; j < this.size[1] && this.win; j++) {
-                switch (this.cells[i][j]) {
-                    case CellType.Empty:
-                    case CellType.Used:
-                    case CellType.Wall:
-                        break;
-
-                    case CellType.Normal:
-                    default:
-                        this.win = false;
-                        break;
-                }
-            }
-        }
+        console.warn("`updateWin` is not functional yet");
+        this.win = this.targets.every(target => target.isSatisfied());
     }
 
     private restoreCleanState() {
@@ -246,13 +333,13 @@ export class Level {
             this.moved = diff.moved;
         }
 
-        if (diff.getPlayerCoords() !== undefined) {
-            this.player.coords = diff.getPlayerCoords() as readonly number[];
-        }
+        // if (diff.getPlayerCoords() !== undefined) {
+        //     this.player.coords = diff.getPlayerCoords() as readonly number[];
+        // }
 
-        for (const [coords, cellType] of diff.cells) {
-            this.cells[coords[0]][coords[1]] = cellType;
-        }
+        // for (const [coords, cellType] of diff.cells) {
+        //     this.cells[coords[0]][coords[1]] = cellType;
+        // }
     }
 
     reverseDiff(diff: StateDiff): StateDiff {
@@ -262,13 +349,13 @@ export class Level {
             reverseDiff.moved = this.moved;
         }
 
-        if (diff.getPlayerCoords() !== undefined) {
-            reverseDiff.setPlayerCoords(this.player.coords);
-        }
+        // if (diff.getPlayerCoords() !== undefined) {
+        //     reverseDiff.setPlayerCoords(this.player.coords);
+        // }
 
-        for (const [coords, _] of diff.cells) {
-            reverseDiff.pushCell(coords, this.cells[coords[0]][coords[1]]);
-        }
+        // for (const [coords, _] of diff.cells) {
+        //     reverseDiff.pushCell(coords, this.cells[coords[0]][coords[1]]);
+        // }
 
         return reverseDiff;
     }
@@ -280,35 +367,16 @@ function isDirection(x: any): x is Direction {
 
 class StateDiff {
     moved?: boolean;
-    #playerCoords?: Readonly<number[]>;
-    /** key is [row, column] */
-    cells: Map<Readonly<number[]>, CellType>;
     constructor() {
-        this.cells = new Map();
-    }
-
-    setPlayerCoords(position: Readonly<number[]>) {
-        if (this.#playerCoords === undefined) {
-            this.#playerCoords = Array.from(position);
-        }
-    }
-    getPlayerCoords() {
-        return this.#playerCoords;
-    }
-
-    pushCell(coords: Readonly<number[]>, cellType: CellType) {
-        if (!this.cells.has(coords)) {
-            this.cells.set(coords, cellType);
-        }
     }
 }
 
 class StateStack {
-    parent: Level;
+    level: Level;
     stateDiffs: StateDiff[];
     nextDiff: StateDiff;
     constructor(level: Level) {
-        this.parent = level;
+        this.level = level;
         this.stateDiffs = [];
         this.nextDiff = new StateDiff();
     }
@@ -318,7 +386,7 @@ class StateStack {
      * Rejected if nextDiff is empty.
      */
     commit() {
-        if ([this.nextDiff.moved, this.nextDiff.getPlayerCoords()].some(x => x !== undefined) || this.nextDiff.cells.size > 0) {
+        if ([this.nextDiff.moved].some(x => x !== undefined)) {
             this.stateDiffs.push(this.nextDiff);
         }
         this.nextDiff = new StateDiff();

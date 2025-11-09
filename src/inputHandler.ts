@@ -1,10 +1,11 @@
-import { Direction, editorMode, getLevelCoords, setEditorMode } from "./internal";
+import { Direction, editorMode, coordsWindowToCoordsLevel, setEditorMode } from "./internal";
 
 export class InputHandler {
     blocked: boolean;
     currentKey: InputHandler.KeyName;
     /**
      * Mouse coordinates in the level where the mouse was clicked last time.
+     * Projected to [0, 1] range.
      */
     currentCoords: Readonly<number[]> | null;
     mouseDownEventUnused: boolean;
@@ -44,12 +45,12 @@ export class InputHandler {
     mouseDownListener(event: MouseEvent) {
         this.mouseDownEventUnused = true;
         this.mouseUpEventUnused = false;
-        this.currentCoords = getLevelCoords([event.offsetX, event.offsetY]);
+        this.currentCoords = coordsWindowToCoordsLevel([event.offsetX, event.offsetY]);
     }
 
     mouseUpListener(event: MouseEvent) {
         this.mouseDownEventUnused = false;
-        const currentCoords = getLevelCoords([event.offsetX, event.offsetY]);
+        const currentCoords = coordsWindowToCoordsLevel([event.offsetX, event.offsetY]);
         if (currentCoords !== this.currentCoords) {
             this.currentCoords = null;
             this.mouseUpEventUnused = false;

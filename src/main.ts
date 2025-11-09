@@ -1,9 +1,11 @@
-import { Level, PALETTE, initializeDrawer, drawLevel, setCellSize, drawUi, inputHandler, mainLevels, metaLevel, drawBannerMessage } from "./internal";
+import { Level, PALETTE, initializeDrawer, drawLevel, setBrickSize, drawUi, inputHandler, mainLevels, metaLevel, drawWinMessage } from "./internal";
 import recursoUrl from "./fonts/recurso-sans/RecursoSans-SemiBold.ttf";
 import ubuntuUrl from "./fonts/ubuntu-font-family-0.83/Ubuntu-M.ttf";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#game_canvas")!;
 const ctx = canvas.getContext("2d")!;
+
+// disable this option for pixel art
 ctx.imageSmoothingEnabled = false;
 
 let fontRecurso = new FontFace("Recurso", `url(${recursoUrl})`);
@@ -21,7 +23,7 @@ fontUbuntu.load().then((font) => {
   console.log(`failed loading font Ubuntu: ${result}`);
 });
 
-export const uiRatio = .16;
+export const uiRatio = .0;
 function getLevelCenter() {
   return [canvas.width * (.5 + uiRatio / 2), canvas.height / 2];
 }
@@ -49,7 +51,7 @@ export function setLevel(n: number) {
   initialState = mainLevels[levelNumber];
   mainLevel = new Level(initialState);
   initializeDrawer(mainLevel);
-  setCellSize([canvas.width * (1 - uiRatio), canvas.height], levelCenter);
+  setBrickSize([canvas.width * (1 - uiRatio), canvas.height], levelCenter);
 }
 
 
@@ -94,7 +96,7 @@ function every_frame(cur_timestamp: number) {
     canvas.height = canvas.clientHeight;
     ctx.imageSmoothingEnabled = false;
     updateCenter();
-    setCellSize([canvas.width * (1 - uiRatio), canvas.height], levelCenter);
+    setBrickSize([canvas.width * (1 - uiRatio), canvas.height], levelCenter);
   }
 
   // update
@@ -104,11 +106,11 @@ function every_frame(cur_timestamp: number) {
   // draw
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillStyle = PALETTE[8]; // background color
+  ctx.fillStyle = PALETTE[4]; // background color
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   drawLevel(ctx);
   drawUi(ctx, uiCenter);
-  drawBannerMessage(ctx, [canvas.width * (1 - uiRatio), canvas.height], levelCenter);
+  drawWinMessage(ctx, [canvas.width * (1 - uiRatio), canvas.height], levelCenter);
 
   if (editorMode) {
     ctx.textAlign = "left";
