@@ -111,21 +111,21 @@ export function drawLevel(context: CanvasRenderingContext2D) {
     context.strokeStyle = PALETTE[3];
     context.lineWidth = minBrickSize * brickRatio * .06;
 
-    let bricksCurrent: { brick: Brick, coords: Coordinates }[];
-    let bricksNext: { brick: Brick, coords: Coordinates }[] = [{ brick: mainLevel.rootBrick, coords: new Coordinates([]) }];
+    let bricksCurrent: Brick[];
+    let bricksNext: Brick[] = [mainLevel.rootBrick];
     for (let depth = 0; bricksNext.length > 0; depth++) {
         bricksCurrent = bricksNext;
         bricksNext = [];
         for (let i = 0; i < bricksCurrent.length; i++) {
-            const { brick: brick, coords: coords } = bricksCurrent[i];
+            const brick = bricksCurrent[i];
             if (brick.isIntact()) {
-                drawBrick(context, brick, coords);
+                drawBrick(context, brick);
             }
             else {
                 for (let i = 0; i < brick.children.length; i++) {
                     const child = brick.children[i];
                     if (child !== null) {
-                        bricksNext.push({ brick: child, coords: new Coordinates(coords.path.concat(i)) });
+                        bricksNext.push(child);
                     }
                 }
             }
@@ -158,14 +158,14 @@ export function drawUi(context: CanvasRenderingContext2D, center: number[]) {
 }
 
 /** todo: implement this */
-function drawBrick(context: CanvasRenderingContext2D, brick: Brick, coords: Coordinates) {
+function drawBrick(context: CanvasRenderingContext2D, brick: Brick) {
     // set outline
     let yRaw0 = topLeft[1];
     let xRaw0 = topLeft[0];
     let yRaw1 = yRaw0 + minRootBrickSize * brickRatio;
     let xRaw1 = xRaw0 + minRootBrickSize * brickRatio;
-    for (let i = 0; i < coords.path.length; i++) {
-        switch (coords.path[i]) {
+    for (let i = 0; i < brick.coords.path.length; i++) {
+        switch (brick.coords.path[i]) {
             case 0:
                 xRaw1 = (xRaw0 + xRaw1) / 2;
                 yRaw1 = (yRaw0 + yRaw1) / 2;
@@ -189,7 +189,7 @@ function drawBrick(context: CanvasRenderingContext2D, brick: Brick, coords: Coor
     const x1 = Math.round(xRaw1);
     const y1 = Math.round(yRaw1);
 
-    const brickSize = minRootBrickSize * brickRatio * Math.pow(2, -coords.path.length);
+    const brickSize = minRootBrickSize * brickRatio * Math.pow(2, -brick.coords.path.length);
 
     // clip brick area
     context.save();
@@ -224,8 +224,8 @@ function drawBrick(context: CanvasRenderingContext2D, brick: Brick, coords: Coor
     context.strokeStyle = PALETTE[7];
     context.lineWidth = Math.round(brickSize * .035);
     const clickableOffset = .24;
-    for (let i = 0; i < brick.clickable.length; i++) {
-        if (brick.clickable[i]) {
+    if (mainLevel.clickables.has(brick)) {
+        for (const i of mainLevel.clickables.get(brick) as number[]) {
             const x0 = Math.round((i % 2 === 0) ? xRaw0 : ((xRaw0 + xRaw1) / 2));
             const x1 = Math.round((i % 2 === 0) ? ((xRaw0 + xRaw1) / 2) : xRaw1);
             const y0 = Math.round((i < 2) ? yRaw0 : ((yRaw0 + yRaw1) / 2));

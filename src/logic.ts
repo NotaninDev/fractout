@@ -1,4 +1,4 @@
-import { initialState, InputHandler, inputHandler, lerp, levelNumber, LevelTemplate, mainLevel, mainLevels, updateAnimationList } from "./internal";
+import { initialState, InputHandler, inputHandler, lerp, LevelTemplate, updateAnimationList } from "./internal";
 
 export const CENTURY_MILLISECONDS = 1000 * 60 * 60 * 24 * 366 * 100;
 
@@ -8,7 +8,6 @@ export enum Direction {
     Down,
     Left
 }
-export const directionVectors = [[-1, 0] as const, [0, 1] as const, [1, 0] as const, [0, -1] as const] as const;
 export function getOpposite(direction: Direction) { return ((direction + 2) % 4) as Direction; }
 
 interface Clonable<T> {
@@ -75,21 +74,18 @@ function generateRandomArray(size: number, rangeMin: number = 0, rangeMax: numbe
 export const BRICK_MAX_DEPTH = 6;
 
 export class Brick {
+    readonly coords: Coordinates;
     /** 0: top-left, 1: top-right, 2: bottom-left, 3: bottom-right */
     holeIndex: number | null;
     parent: Brick | null;
-    /** depth of the brick counting root as 0 */
-    depth: number;
     /** top-left, top-right, bottom-left, bottom-right */
     readonly children: (Brick | null)[];
-    readonly clickable: boolean[];
 
-    constructor(parent: Brick | null) {
+    constructor(coords: Coordinates, parent: Brick | null) {
+        this.coords = coords;
         this.holeIndex = null;
         this.parent = parent;
-        this.depth = (parent === null) ? 0 : (parent.depth + 1);
         this.children = [null, null, null, null];
-        this.clickable = [false, false, false, false];
     }
 
     isIntact() {
@@ -102,20 +98,21 @@ export class Brick {
      * @returns whether breaking succeeded
      */
     break(breakIndex: number) {
+        if (breakIndex < 0 || breakIndex >= 4) {
+            console.error(`invalid breakIndex ${breakIndex}`);
+            return false;
+        }
         if (!this.isIntact()) {
             console.error(`cannot break; has a hole in ${getPositionString(this.holeIndex)}`);
             return false;
         }
-        if (this.depth >= BRICK_MAX_DEPTH) {
+        if (this.coords.path.length >= BRICK_MAX_DEPTH) {
             return false;
         }
         for (let i = 0; i < this.children.length; i++) {
             if (i === breakIndex) continue;
-            const childBrick = new Brick(this);
+            const childBrick = new Brick(new Coordinates(this.coords.path.concat(i)), this);
             this.children[i] = childBrick;
-            for (let j = 0; j < childBrick.clickable.length; j++) {
-                childBrick.clickable[j] = true;
-            }
         }
         this.holeIndex = breakIndex;
         return true;
@@ -168,6 +165,32 @@ export class Coordinates {
     constructor(path: Readonly<number[]>) {
         this.path = Array.from(path);
     }
+
+    isEqual(otherCoords: Coordinates) {
+        if (this.path.length != otherCoords.path.length) return false;
+        for (let i = 0; i < this.path.length; i++) {
+            if (this.path[i] != otherCoords.path[i]) return false;
+        }
+        return true;
+    }
+
+    /** compares if this is a strict ancestor of `otherCoords`; can't be equal */
+    isAncestorOf(otherCoords: Coordinates) {
+        if (this.path.length >= otherCoords.path.length) return false;
+        for (let i = 0; i < this.path.length; i++) {
+            if (this.path[i] != otherCoords.path[i]) return false;
+        }
+        return true;
+    }
+
+    /** compares if this is a strict decendant of `otherCoords`; can't be equal */
+    isDecendantOf(otherCoords: Coordinates) {
+        if (this.path.length <= otherCoords.path.length) return false;
+        for (let i = 0; i < otherCoords.path.length; i++) {
+            if (this.path[i] != otherCoords.path[i]) return false;
+        }
+        return true;
+    }
 }
 
 export class Target {
@@ -191,6 +214,8 @@ export class Target {
 export class Level {
     rootBrick: Brick;
     readonly targets!: Readonly<Target[]>;
+    /** map from a brick to the indice of its clickable children */
+    clickables: Map<Brick, Readonly<number[]>>;
 
     /** tracks if any moves were made since the initial state */
     moved: boolean;
@@ -201,10 +226,10 @@ export class Level {
     constructor(template: LevelTemplate) {
         this.targets = template.targets.map(coords => new Target(this, coords));
 
-        this.rootBrick = new Brick(null);
-        for (let i = 0; i < this.rootBrick.clickable.length; i++) {
-            this.rootBrick.clickable[i] = true;
-        }
+        this.rootBrick = new Brick(new Coordinates([]), null);
+        this.clickables = new Map();
+        this.clickables.set(this.rootBrick, [0, 1, 2, 3]);
+
         this.win = false;
         this.moved = false;
         this.undoStack = new StateStack(this);
@@ -224,7 +249,7 @@ export class Level {
      * @param rawCoords coordinates in the root brick scaled to [0, 1] on both axes; [x, y]
      * @returns brick coordinates of the child of the now-intact brick, if such brick exists. null otherwise.
      */
-    toBrickCoords(rawCoords: Readonly<number[]>) {
+    toChildBrickCoords(rawCoords: Readonly<number[]>) {
         if (!this.inMap(rawCoords)) return null;
 
         let currentBrick: Brick | null = this.rootBrick;
@@ -253,6 +278,99 @@ export class Level {
         return currentBrick;
     }
 
+    /**
+     * get the youngest existing ancestor brick of the brick located at the given coordinates.
+     */
+    getAncestorBrickByCoords(coords: Coordinates) {
+        let currentBrick: Brick = this.rootBrick;
+        for (let i = 0; i < coords.path.length; i++) {
+            const nextBrick = currentBrick.children[coords.path[i]];
+            if (nextBrick === null) break;
+            currentBrick = nextBrick;
+        }
+        return currentBrick;
+    }
+
+    /**
+     * get all bricks and their clickable children when the brick at the given coordinates is clicked
+     * @param clickCoords the coordinates to get neighboring bricks of
+     * @returns map from brick to its clickable children's indice
+     */
+    getClickablesFromClickCoords(clickCoords: Coordinates) {
+
+        // there are two types of adjucency:
+        // - neighbors' click-sided decendants
+        // - neighbors' ancestors, excluding common ancestors
+
+        function canAdd(x: number, diff: number) {
+            const y = x + diff;
+            return y >= 0 && y < 4 && x + y != 3;
+        }
+        const directionOffsets = [-2, +1, +2, -1];
+        const clickables: Map<Brick, Readonly<number[]>> = new Map();
+        for (let direction = 0; direction < directionOffsets.length; direction++) {
+            const newPath = Array.from(clickCoords.path);
+            const offset = directionOffsets[direction];
+            let invalidAddition = true;
+            for (let i = newPath.length - 1; i >= 0; i--) {
+                if (canAdd(newPath[i], offset)) {
+                    newPath[i] += offset;
+                    invalidAddition = false;
+                    break;
+                }
+                newPath[i] -= offset;
+            }
+            if (invalidAddition) continue;
+
+            const newCoords = new Coordinates(newPath);
+
+            // neighbor's ancestor
+            const neighborBrick = this.getAncestorBrickByCoords(newCoords);
+            const neighborCoords = neighborBrick.coords;
+            if (neighborCoords.isAncestorOf(clickCoords)) continue;
+            if (!neighborCoords.isEqual(newCoords)) {
+                clickables.set(neighborBrick, [newPath[neighborCoords.path.length]]);
+                continue;
+            }
+
+            // neighbor's decendants
+            const validChildIndice: number[] = [];
+            const decendantStack: Brick[] = [neighborBrick];
+            switch (direction) {
+                case 0:
+                    validChildIndice.push(2);
+                    validChildIndice.push(3);
+                    break;
+                case 1:
+                    validChildIndice.push(0);
+                    validChildIndice.push(2);
+                    break;
+                case 2:
+                    validChildIndice.push(0);
+                    validChildIndice.push(1);
+                    break;
+                case 3:
+                    validChildIndice.push(1);
+                    validChildIndice.push(3);
+                    break;
+            }
+            while (decendantStack.length > 0) {
+                const currentDecendant = decendantStack.pop() as Brick;
+                if (currentDecendant.isIntact()) {
+                    clickables.set(currentDecendant, validChildIndice);
+                    continue;
+                }
+                for (let i = 0; i < validChildIndice.length; i++) {
+                    const nextDecendant = currentDecendant.children[validChildIndice[i]];
+                    if (nextDecendant !== null) {
+                        decendantStack.push(nextDecendant);
+                    }
+                }
+            }
+        }
+        return clickables;
+    }
+
     updateState() {
         updateAnimationList();
 
@@ -261,16 +379,15 @@ export class Level {
 
             // assuming left click; right click is not implemented yet
             if (inputHandler.currentCoords !== null) {
-                const brickCoords = this.toBrickCoords(inputHandler.currentCoords);
-                console.log(`brick coords: ${brickCoords?.path}`);
-                console.log(`length ${brickCoords?.path.length}`);
-                if (brickCoords !== null) {
-                    const clickedBrick = this.getBrickByCoords(new Coordinates(brickCoords.path.slice(0, -1)));
-                    if (clickedBrick !== null && clickedBrick.isIntact()) {
-                        if (clickedBrick.depth >= BRICK_MAX_DEPTH) {
-                            console.log("can't break; too small!");
+                const clickCoords = this.toChildBrickCoords(inputHandler.currentCoords);
+                if (clickCoords !== null) {
+                    const clickedBrick = this.getBrickByCoords(new Coordinates(clickCoords.path.slice(0, -1)));
+                    if (clickedBrick !== null && clickedBrick.isIntact() &&
+                        this.clickables.get(clickedBrick)?.includes(clickCoords.path[clickCoords.path.length - 1])) {
+                        if (clickedBrick.coords.path.length >= BRICK_MAX_DEPTH) {
                         }
-                        else if (clickedBrick.break(brickCoords.path[brickCoords.path.length - 1])) {
+                        else if (clickedBrick.break(clickCoords.path[clickCoords.path.length - 1])) {
+                            this.clickables = this.getClickablesFromClickCoords(clickCoords);
                             // todo: push to undoStack
                         }
                     }
