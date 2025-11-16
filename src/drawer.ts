@@ -15,11 +15,11 @@ export function clamp(a: number, b: number, t: number) {
     return Math.min(b, Math.max(a, t));
 }
 
-export function imageFromName(fileName: string): Promise<HTMLImageElement> {
+export function imageFromName(fileName: string, extension: string = "png"): Promise<HTMLImageElement> {
     return new Promise((resolve, reject) => {
         const img = new Image();
         img.crossOrigin = 'Anonymous'; // to avoid CORS if used with Canvas
-        img.src = new URL(`./images/${fileName}.png`, import.meta.url).href
+        img.src = new URL(`./images/${fileName}.${extension}`, import.meta.url).href
         img.onload = () => {
             resolve(img);
         }
@@ -43,9 +43,13 @@ export function imageFromUrl(url: string): Promise<HTMLImageElement> {
     })
 }
 
-export const PALETTE = ["#9ee7d7", "#6ac0bd", "#5889a2", "#462c4b", "#724254", "#c18c72", "#fcebb6", "#a9f05f", "#5fad67", "#4e5e5e"] as const;
-export const DESERT_PALETTE = ["#151244", "#60117f", "#922a95", "#be7dbc", "#350828", "#7f6962", "#f9cb60", "#f9960f", "#bc2f01", "#680703"] as const;
+export const PALETTE = ["#ffebd8", "#ff7f00", "#4f67ff", "#19011a"] as const;
 
+const leavesTexture = await imageFromName("leaves", "svg");
+const selectorTexture = await imageFromName("selector", "svg");
+const heartTexture = await imageFromName("heart", "svg");
+const brokenHeartLTexture = await imageFromName("broken heart L", "svg");
+const brokenHeartRTexture = await imageFromName("broken heart R", "svg");
 const notanTexture = await imageFromName('notan bird');
 const playerTexture = await imageFromName('example');
 /** smallest possible size of the smallest brick */
@@ -108,9 +112,6 @@ function drawTutorialText(context: CanvasRenderingContext2D) {
 }
 
 export function drawLevel(context: CanvasRenderingContext2D) {
-    context.strokeStyle = PALETTE[3];
-    context.lineWidth = minBrickSize * brickRatio * .06;
-
     let bricksCurrent: Brick[];
     let bricksNext: Brick[] = [mainLevel.rootBrick];
     for (let depth = 0; bricksNext.length > 0; depth++) {
@@ -160,83 +161,58 @@ export function drawUi(context: CanvasRenderingContext2D, center: number[]) {
 /** todo: implement this */
 function drawBrick(context: CanvasRenderingContext2D, brick: Brick) {
     // set outline
-    let yRaw0 = topLeft[1];
-    let xRaw0 = topLeft[0];
-    let yRaw1 = yRaw0 + minRootBrickSize * brickRatio;
-    let xRaw1 = xRaw0 + minRootBrickSize * brickRatio;
+    let y0 = topLeft[1];
+    let x0 = topLeft[0];
+    let y1 = y0 + minRootBrickSize * brickRatio;
+    let x1 = x0 + minRootBrickSize * brickRatio;
     for (let i = 0; i < brick.coords.path.length; i++) {
         switch (brick.coords.path[i]) {
             case 0:
-                xRaw1 = (xRaw0 + xRaw1) / 2;
-                yRaw1 = (yRaw0 + yRaw1) / 2;
+                x1 = (x0 + x1) / 2;
+                y1 = (y0 + y1) / 2;
                 break;
             case 1:
-                xRaw0 = (xRaw0 + xRaw1) / 2;
-                yRaw1 = (yRaw0 + yRaw1) / 2;
+                x0 = (x0 + x1) / 2;
+                y1 = (y0 + y1) / 2;
                 break;
             case 2:
-                xRaw1 = (xRaw0 + xRaw1) / 2;
-                yRaw0 = (yRaw0 + yRaw1) / 2;
+                x1 = (x0 + x1) / 2;
+                y0 = (y0 + y1) / 2;
                 break;
             case 3:
-                xRaw0 = (xRaw0 + xRaw1) / 2;
-                yRaw0 = (yRaw0 + yRaw1) / 2;
+                x0 = (x0 + x1) / 2;
+                y0 = (y0 + y1) / 2;
                 break;
         }
     }
-    const y0 = Math.round(yRaw0);
-    const x0 = Math.round(xRaw0);
-    const x1 = Math.round(xRaw1);
-    const y1 = Math.round(yRaw1);
-
-    const brickSize = minRootBrickSize * brickRatio * Math.pow(2, -brick.coords.path.length);
-
-    // clip brick area
-    context.save();
-    context.beginPath();
-    context.roundRect(x0, y0, x1 - x0, y1 - y0, Math.round(brickSize * 0.067));
-    context.clip();
 
     // draw brick
-    context.fillStyle = PALETTE[5];
-    context.fillRect(x0, y0, x1 - x0, y1 - y0);
-
-    context.strokeStyle = PALETTE[3];
-    context.lineWidth = Math.round(brickSize * .135);
-    context.beginPath();
-    context.moveTo(x0, y1);
-    context.lineTo(x1, y1);
-    context.stroke();
-    context.lineWidth = Math.round(brickSize * .09);
-    context.beginPath();
-    context.moveTo(x1, y1);
-    context.lineTo(x1, y0);
-    context.stroke();
-
-    context.lineWidth = Math.round(brickSize * .033);
-    context.beginPath();
-    context.moveTo(lerp(x0, x1, .28), lerp(y0, y1, .5));
-    context.lineTo(lerp(x0, x1, .5), lerp(y0, y1, .5));
-    context.lineTo(lerp(x0, x1, .5), lerp(y0, y1, .42));
-    context.stroke();
+    context.drawImage(leavesTexture, x0, y0, x1 - x0, y1 - y0)
 
     // draw clickable sign
-    context.strokeStyle = PALETTE[7];
-    context.lineWidth = Math.round(brickSize * .035);
-    const clickableOffset = .24;
     if (mainLevel.clickables.has(brick)) {
+        const xCenter = (x0 + x1) / 2;
+        const yCenter = (y0 + y1) / 2;
         for (const i of mainLevel.clickables.get(brick) as number[]) {
-            const x0 = Math.round((i % 2 === 0) ? xRaw0 : ((xRaw0 + xRaw1) / 2));
-            const x1 = Math.round((i % 2 === 0) ? ((xRaw0 + xRaw1) / 2) : xRaw1);
-            const y0 = Math.round((i < 2) ? yRaw0 : ((yRaw0 + yRaw1) / 2));
-            const y1 = Math.round((i < 2) ? ((yRaw0 + yRaw1) / 2) : yRaw1);
-            context.beginPath();
-            context.moveTo(lerp(x0, x1, .5 - clickableOffset), lerp(y0, y1, .5));
-            context.lineTo(lerp(x0, x1, .5), lerp(y0, y1, .5 + clickableOffset));
-            context.lineTo(lerp(x0, x1, .5 + clickableOffset), lerp(y0, y1, .5));
-            context.lineTo(lerp(x0, x1, .5), lerp(y0, y1, .5 - clickableOffset));
-            context.closePath();
-            context.stroke();
+            context.save();
+            context.translate(xCenter, yCenter);
+            switch (i) {
+                case 1:
+                    context.rotate(Math.PI / 2);
+                    break;
+                case 2:
+                    context.rotate(-Math.PI / 2);
+                    break;
+                case 3:
+                    context.rotate(Math.PI);
+                    break;
+
+                default:
+                    break;
+            }
+            context.translate(-xCenter, -yCenter);
+            context.drawImage(selectorTexture, x0, y0, x1 - x0, y1 - y0)
+            context.restore();
         }
     }
 

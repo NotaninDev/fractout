@@ -5,8 +5,8 @@ import ubuntuUrl from "./fonts/ubuntu-font-family-0.83/Ubuntu-M.ttf";
 const canvas = document.querySelector<HTMLCanvasElement>("#game_canvas")!;
 const ctx = canvas.getContext("2d")!;
 
-// disable this option for pixel art
-ctx.imageSmoothingEnabled = false;
+// // disable this option for pixel art
+// ctx.imageSmoothingEnabled = false;
 
 let fontRecurso = new FontFace("Recurso", `url(${recursoUrl})`);
 let fontUbuntu = new FontFace("Ubuntu-M", `url(${ubuntuUrl})`);
@@ -106,7 +106,7 @@ function every_frame(cur_timestamp: number) {
   // draw
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillStyle = PALETTE[4]; // background color
+  ctx.fillStyle = PALETTE[1]; // background color
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   drawLevel(ctx);
   drawUi(ctx, uiCenter);
@@ -114,7 +114,7 @@ function every_frame(cur_timestamp: number) {
 
   if (editorMode) {
     ctx.textAlign = "left";
-    ctx.fillStyle = PALETTE[5];
+    ctx.fillStyle = PALETTE[3];
     ctx.font = "12px Ubuntu-M";
     ctx.fillText(frameRateText, 20, 20);
   }
