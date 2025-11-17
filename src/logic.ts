@@ -377,9 +377,8 @@ export class Level {
         if (inputHandler.mouseDownEventUnused) {
             inputHandler.mouseDownEventUnused = false;
 
-            // assuming left click; right click is not implemented yet
-            if (inputHandler.currentCoords !== null) {
-                const clickCoords = this.toChildBrickCoords(inputHandler.currentCoords);
+            if (inputHandler.mouseButton === 0 && inputHandler.levelCoords !== null) {
+                const clickCoords = this.toChildBrickCoords(inputHandler.levelCoords);
                 if (clickCoords !== null) {
                     const clickedBrick = this.getBrickByCoords(new Coordinates(clickCoords.path.slice(0, -1)));
                     if (clickedBrick !== null && clickedBrick.isIntact() &&
@@ -393,7 +392,11 @@ export class Level {
                     }
                 }
             }
-            else if (inputHandler.currentKey === InputHandler.KeyName.Undo) {
+        }
+        else if (inputHandler.keyDownEventUnused) {
+            inputHandler.keyDownEventUnused = false;
+
+            if (inputHandler.currentKey === InputHandler.KeyName.Undo) {
                 if (this.undoStack.hasDiffs()) {
                     const diff = this.undoStack.pop();
                     if (diff !== undefined) {

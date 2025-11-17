@@ -1,4 +1,4 @@
-import { Direction, editorMode, coordsWindowToCoordsLevel, setEditorMode } from "./internal";
+import { Direction, editorMode, coordsWindowToCoordsLevel, setEditorMode, coordsInPlayArea } from "./internal";
 
 export class InputHandler {
     blocked: boolean;
@@ -7,7 +7,8 @@ export class InputHandler {
      * Mouse coordinates in the level where the mouse was clicked last time.
      * Projected to [0, 1] range.
      */
-    currentCoords: Readonly<number[]> | null;
+    levelCoords: Readonly<number[]> | null;
+    mouseButton: number | null;
     mouseDownEventUnused: boolean;
     mouseUpEventUnused: boolean;
     keyDownEventUnused: boolean;
@@ -15,7 +16,8 @@ export class InputHandler {
     private keyDown: Record<InputHandler.KeyName, boolean>;
     constructor() {
         this.blocked = false;
-        this.currentCoords = null;
+        this.levelCoords = null;
+        this.mouseButton = null;
         this.currentKey = InputHandler.KeyName.None;
         this.mouseDownEventUnused = false;
         this.mouseUpEventUnused = false;
@@ -43,16 +45,22 @@ export class InputHandler {
 
 
     mouseDownListener(event: MouseEvent) {
-        this.mouseDownEventUnused = true;
-        this.mouseUpEventUnused = false;
-        this.currentCoords = coordsWindowToCoordsLevel([event.offsetX, event.offsetY]);
+        if (coordsInPlayArea([event.offsetX, event.offsetY])) {
+            this.mouseDownEventUnused = true;
+            this.mouseUpEventUnused = false;
+            this.levelCoords = coordsWindowToCoordsLevel([event.offsetX, event.offsetY]);
+            this.mouseButton = event.button;
+        }
+        else {
+            this.mouseButton = null;
+        }
     }
 
     mouseUpListener(event: MouseEvent) {
         this.mouseDownEventUnused = false;
         const currentCoords = coordsWindowToCoordsLevel([event.offsetX, event.offsetY]);
-        if (currentCoords !== this.currentCoords) {
-            this.currentCoords = null;
+        if (currentCoords !== this.levelCoords) {
+            this.levelCoords = null;
             this.mouseUpEventUnused = false;
         }
         else {

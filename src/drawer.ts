@@ -100,6 +100,22 @@ export function coordsWindowToCoordsLevel(coordsWindow: Readonly<number[]>) {
     return scale(add(coordsWindow, scale(topLeft, -1)), 1 / (minRootBrickSize * brickRatio));
 }
 
+/**
+ * given coordinates in the window, return if it's within the play area
+ * @param coordsWindow [x, y]; absolute coordinates in the window
+ * @returns if the input is inside the play area
+ */
+export function coordsInPlayArea(coordsWindow: Readonly<number[]>) {
+    // can't get the window coordinates correctly on the first frame
+    if (timestepGlobal === 0 || coordsWindow.length !== 2) {
+        return false;
+    }
+    return coordsWindow[0] >= topLeft[0] &&
+        coordsWindow[0] <= topLeft[0] + minRootBrickSize * brickRatio &&
+        coordsWindow[1] >= topLeft[1] &&
+        coordsWindow[1] <= topLeft[1] + minRootBrickSize * brickRatio;
+}
+
 function toRadian(x: number) { return x * Math.PI / 180; }
 
 
