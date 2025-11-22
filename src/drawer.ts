@@ -46,24 +46,39 @@ export function imageFromUrl(url: string): Promise<HTMLImageElement> {
 export const PALETTE = ["#ffebd8", "#ff7f00", "#4f67ff", "#19011a"] as const;
 
 const leavesTexture = await imageFromName("leaves", "svg");
-const selectorTexture = await imageFromName("selector", "svg");
+const selectorTexture = await imageFromName("leaf selector", "svg");
+const zoomInTexture = await imageFromName("zoom in DR", "svg");
+const zoomInSelectorTexture = await imageFromName("zoom in selector DR", "svg");
+const zoomOutTexture = await imageFromName("zoom out U", "svg");
+const zoomOutSelectorTexture = await imageFromName("zoom out selector U", "svg");
 const heartTexture = await imageFromName("heart", "svg");
 const brokenHeartLTexture = await imageFromName("broken heart L", "svg");
 const brokenHeartRTexture = await imageFromName("broken heart R", "svg");
 const notanTexture = await imageFromName('notan bird');
 const playerTexture = await imageFromName('example');
-/** smallest possible size of the smallest brick */
-const minBrickSize = 8;
-/** smallest possible size of the root brick */
-const minRootBrickSize = minBrickSize * Math.pow(2, BRICK_MAX_DEPTH);
+/** smallest possible size of the smallest brick in pixel */
+const MIN_BRICK_SIZE = 7;
+/** smallest possible padding size of the brick view frame in pixel */
+const MIN_BRICK_VIEW_PADDING_SIZE = 12;
+/** smallest possible size of the zoom button area in pixel */
+const MIN_ZOOM_BUTTON_AREA_SIZE = 60;
+/** margin size of the play area in pixel */
+const PLAY_AREA_MARGIN_SIZE = 15;
 
 
 let levelDrawer: Level;
-/** ratio of the size of the drawn brick to its smallest possible size */
-let brickRatio: number;
+let rootBrickSize: number;
+let brickViewSize: number;
+let zoomButtonAreaSize: number;
+let playAreaSize: number;
 let textRatio: number;
-/** the top left coordinates of the level in pixels; [x, y] */
-let topLeft: number[];
+/** the top left coordinates of the root brick in pixels; [x, y] */
+let brickTopLeft: Readonly<number[]>;
+/** the top left coordinates of the brick view frame in pixels; [x, y] */
+let brickViewTopLeft: Readonly<number[]>;
+/** the top left coordinates of the play area in pixels; [x, y] */
+let playAreaTopLeft: Readonly<number[]>;
+let playAreaCenter: Readonly<number[]>;
 export function initializeDrawer(levelAttr: Level) {
     levelDrawer = levelAttr;
 }
@@ -74,10 +89,24 @@ export function initializeDrawer(levelAttr: Level) {
  * @param levelCenter [x, y]
  */
 export function setBrickSize(canvasSize: Readonly<number[]>, levelCenter: Readonly<number[]>) {
-    const maxWidth = Math.min(levelCenter[0], canvasSize[0] - levelCenter[0]) * 2;
-    const maxHeight = Math.min(levelCenter[1], canvasSize[1] - levelCenter[1]) * 2;
-    brickRatio = Math.max(1, Math.floor(Math.min(maxWidth, maxHeight) / minRootBrickSize));
-    topLeft = add(levelCenter, scale([1, 1], -minRootBrickSize * brickRatio / 2));
+    const maxWidth = (Math.min(levelCenter[0], canvasSize[0] - levelCenter[0]) - PLAY_AREA_MARGIN_SIZE) * 2;
+    const maxHeight = (Math.min(levelCenter[1], canvasSize[1] - levelCenter[1]) - PLAY_AREA_MARGIN_SIZE) * 2;
+    /** smallest possible size of the root brick in pixel */
+    const minRootBrickSize = MIN_BRICK_SIZE * Math.pow(2, BRICK_MAX_DEPTH);
+    const minPlayAreaSize = minRootBrickSize + MIN_BRICK_VIEW_PADDING_SIZE * 2 + MIN_ZOOM_BUTTON_AREA_SIZE * 2;
+    /** ratio of the size of the drawn brick to its smallest possible size */
+    let brickRatio = Math.max(1, Math.min(maxWidth, maxHeight) / minPlayAreaSize);
+    rootBrickSize = Math.floor(minRootBrickSize * brickRatio / 2) * 2;
+    brickRatio = rootBrickSize / minRootBrickSize;
+    brickTopLeft = add(levelCenter, scale([1, 1], -rootBrickSize / 2));
+    brickViewTopLeft = add(brickTopLeft, scale([1, 1], -MIN_BRICK_VIEW_PADDING_SIZE * brickRatio));
+    brickViewSize = rootBrickSize + MIN_BRICK_VIEW_PADDING_SIZE * brickRatio * 2;
+
+    zoomButtonAreaSize = MIN_ZOOM_BUTTON_AREA_SIZE * brickRatio;
+    playAreaTopLeft = add(brickViewTopLeft, scale([1, 1], -zoomButtonAreaSize));
+    playAreaCenter = levelCenter;
+    playAreaSize = brickViewSize + zoomButtonAreaSize * 2;
+    console.log(playAreaTopLeft, playAreaSize);
 
     textRatio = brickRatio;
 }
@@ -97,7 +126,7 @@ export function coordsWindowToCoordsLevel(coordsWindow: Readonly<number[]>) {
         return null;
     }
 
-    return scale(add(coordsWindow, scale(topLeft, -1)), 1 / (minRootBrickSize * brickRatio));
+    return scale(add(coordsWindow, scale(brickTopLeft, -1)), 1 / rootBrickSize);
 }
 
 /**
@@ -110,10 +139,10 @@ export function coordsInPlayArea(coordsWindow: Readonly<number[]>) {
     if (timestepGlobal === 0 || coordsWindow.length !== 2) {
         return false;
     }
-    return coordsWindow[0] >= topLeft[0] &&
-        coordsWindow[0] <= topLeft[0] + minRootBrickSize * brickRatio &&
-        coordsWindow[1] >= topLeft[1] &&
-        coordsWindow[1] <= topLeft[1] + minRootBrickSize * brickRatio;
+    return coordsWindow[0] >= playAreaTopLeft[0] &&
+        coordsWindow[0] <= playAreaTopLeft[0] + playAreaSize &&
+        coordsWindow[1] >= playAreaTopLeft[1] &&
+        coordsWindow[1] <= playAreaTopLeft[1] + playAreaSize;
 }
 
 function toRadian(x: number) { return x * Math.PI / 180; }
@@ -127,7 +156,14 @@ function drawTutorialText(context: CanvasRenderingContext2D) {
     }
 }
 
+const BRICK_VIEW_LINE_WIDTH = 4;
+
 export function drawLevel(context: CanvasRenderingContext2D) {
+    context.save();
+    context.beginPath();
+    context.rect(brickViewTopLeft[0], brickViewTopLeft[1], brickViewSize, brickViewSize);
+    context.clip();
+
     let bricksCurrent: Brick[];
     let bricksNext: Brick[] = [mainLevel.rootBrick];
     for (let depth = 0; bricksNext.length > 0; depth++) {
@@ -148,6 +184,37 @@ export function drawLevel(context: CanvasRenderingContext2D) {
             }
         }
     }
+
+    context.restore();
+
+    context.save();
+    context.beginPath();
+    context.rect(playAreaTopLeft[0] - PLAY_AREA_MARGIN_SIZE, playAreaTopLeft[1] - PLAY_AREA_MARGIN_SIZE, playAreaSize + PLAY_AREA_MARGIN_SIZE * 2, playAreaSize + PLAY_AREA_MARGIN_SIZE * 2);
+    context.rect(brickViewTopLeft[0], brickViewTopLeft[1], brickViewSize, brickViewSize);
+    context.clip("evenodd");
+
+    context.beginPath();
+    context.strokeStyle = PALETTE[3];
+    context.lineWidth = BRICK_VIEW_LINE_WIDTH * 2;
+    context.rect(brickViewTopLeft[0], brickViewTopLeft[1], brickViewSize, brickViewSize);
+    context.stroke();
+
+    for (let i = 0; i < 4; i++) {
+        context.save();
+        context.translate(playAreaCenter[0], playAreaCenter[1]);
+        context.rotate(Math.PI * i / 2);
+        context.translate(-playAreaCenter[0], -playAreaCenter[1]);
+
+        context.drawImage(zoomInTexture, playAreaTopLeft[0], playAreaTopLeft[1], zoomButtonAreaSize, zoomButtonAreaSize);
+        context.drawImage(zoomInSelectorTexture, playAreaTopLeft[0], playAreaTopLeft[1], zoomButtonAreaSize, zoomButtonAreaSize);
+
+        context.drawImage(zoomOutTexture, playAreaCenter[0] - zoomButtonAreaSize / 2, playAreaTopLeft[1], zoomButtonAreaSize, zoomButtonAreaSize);
+        context.drawImage(zoomOutSelectorTexture, playAreaCenter[0] - zoomButtonAreaSize / 2, playAreaTopLeft[1], zoomButtonAreaSize, zoomButtonAreaSize);
+
+        context.restore();
+    }
+
+    context.restore();
 
     // draw tutorial text
     drawTutorialText(context);
@@ -174,13 +241,12 @@ export function drawWinMessage(context: CanvasRenderingContext2D, canvasSize: Re
 export function drawUi(context: CanvasRenderingContext2D, center: number[]) {
 }
 
-/** todo: implement this */
 function drawBrick(context: CanvasRenderingContext2D, brick: Brick) {
     // set outline
-    let y0 = topLeft[1];
-    let x0 = topLeft[0];
-    let y1 = y0 + minRootBrickSize * brickRatio;
-    let x1 = x0 + minRootBrickSize * brickRatio;
+    let y0 = brickTopLeft[1];
+    let x0 = brickTopLeft[0];
+    let y1 = y0 + rootBrickSize;
+    let x1 = x0 + rootBrickSize;
     for (let i = 0; i < brick.coords.path.length; i++) {
         switch (brick.coords.path[i]) {
             case 0:
