@@ -1,4 +1,4 @@
-import { initialState, InputHandler, inputHandler, lerp, LevelTemplate, updateAnimationList, updateZoomState, zoomCoords } from "./internal";
+import { animationList, AnimationType, closeDepthWarning, initialState, InputHandler, inputHandler, lerp, LevelTemplate, registerDepthWarningAnim, updateAnimationList, updateZoomState, zoomCoords } from "./internal";
 
 export const CENTURY_MILLISECONDS = 1000 * 60 * 60 * 24 * 366 * 100;
 
@@ -107,7 +107,8 @@ export class Brick {
             return false;
         }
         if (this.coords.path.length >= zoomCoords.path.length + BRICK_MAX_DEPTH) {
-            // todo: register zoom warning animation
+            console.warn(`can't break brick at relative depth ${this.coords.path.length - zoomCoords.path.length}`);
+            registerDepthWarningAnim();
             return false;
         }
         for (let i = 0; i < this.children.length; i++) {
@@ -263,7 +264,7 @@ export class Level {
 
         // get the clicked brick
         let scaledCoords = Array.from(rawCoords);
-        while (currentBrick !== null) {
+        while (currentBrick !== null && brickPath.length < zoomCoords.path.length + BRICK_MAX_DEPTH) {
             const isLeft = scaledCoords[0] < .5;
             const isUp = scaledCoords[1] < .5;
             const childIndex = (isLeft ? 0 : 1) + (isUp ? 0 : 2);
@@ -383,19 +384,38 @@ export class Level {
         updateAnimationList();
 
         if (inputHandler.mouseDownEventUnused) {
-
             if (inputHandler.mouseButton === 0 && inputHandler.levelCoords !== null) {
-                const clickCoords = this.toChildBrickCoords(inputHandler.levelCoords);
-                if (clickCoords !== null) {
-                    inputHandler.mouseDownEventUnused = false;
-                    const clickedBrick = this.getBrickByCoords(new Coordinates(clickCoords.path.slice(0, -1)));
-                    if (clickedBrick !== null && clickedBrick.isIntact() &&
-                        this.clickables.get(clickedBrick)?.includes(clickCoords.path[clickCoords.path.length - 1])) {
-                        if (clickedBrick.break(clickCoords.path[clickCoords.path.length - 1])) {
-                            this.clickables = this.getClickablesFromClickCoords(clickCoords);
-                            // todo: push to undoStack
+                if (this.inMap(inputHandler.levelCoords)) {
+                    if (animationList[AnimationType.DepthWarning].length > 0) {
+                        inputHandler.mouseDownEventUnused = false;
+                        closeDepthWarning();
+                    }
+                    else {
+                        const clickCoords = this.toChildBrickCoords(inputHandler.levelCoords);
+                        if (clickCoords !== null) {
+                            inputHandler.mouseDownEventUnused = false;
+                            const clickedBrick = this.getBrickByCoords(new Coordinates(clickCoords.path.slice(0, -1)));
+                            if (clickedBrick !== null) {
+                                let rejectDepth = false;
+                                for (const [clickableBrick, _] of this.clickables) {
+                                    if (clickableBrick.coords.isEqual(clickCoords) || clickableBrick.coords.isDecendantOf(clickCoords)) {
+                                        rejectDepth = true;
+                                        break;
+                                    }
+                                }
+                                if (rejectDepth) {
+                                    registerDepthWarningAnim();
+                                }
+                                else if (clickedBrick.isIntact() &&
+                                    this.clickables.get(clickedBrick)?.includes(clickCoords.path[clickCoords.path.length - 1])) {
+                                    if (clickedBrick.break(clickCoords.path[clickCoords.path.length - 1])) {
+                                        this.clickables = this.getClickablesFromClickCoords(clickCoords);
+                                        // todo: push to undoStack
 
-                            updateZoomState();
+                                        updateZoomState();
+                                    }
+                                }
+                            }
                         }
                     }
                 }

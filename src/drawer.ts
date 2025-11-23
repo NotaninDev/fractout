@@ -1,4 +1,4 @@
-import { Level, add, scale, levelNumber, mainLevel, timestepGlobal, BRICK_MAX_DEPTH, Brick, Coordinates, inputHandler, registerZoomAnim, animationList, AnimationType, AnimationZoom } from "./internal";
+import { Level, add, scale, levelNumber, mainLevel, timestepGlobal, BRICK_MAX_DEPTH, Brick, Coordinates, inputHandler, registerZoomAnim, animationList, AnimationType, AnimationZoom, AnimationDepthWarning, closeDepthWarning } from "./internal";
 
 export function lerp(a: number, b: number, t: number) {
     return a * (1 - t) + b * t;
@@ -154,6 +154,7 @@ export function coordsInPlayArea(coordsWindow: Readonly<number[]>) {
 
 
 const zoomButtonClickable = [false, false, false, false];
+export let usedZoom = false;
 
 export function evaluateUiClick() {
     if (inputHandler.mouseDownEventUnused) {
@@ -189,6 +190,8 @@ export function evaluateUiClick() {
                 if (zoomType === ZoomType.Out && zoomCoords.path.length == 0) return;
                 if (zoomType === ZoomType.In && !zoomButtonClickable[childIndex!]) return;
                 registerZoomAnim(zoomType, childIndex);
+                closeDepthWarning();
+                usedZoom = true;
             }
         }
     }
@@ -239,6 +242,14 @@ export function updateZoomState() {
     for (let i = 0; i < zoomButtonClickable.length; i++) {
         zoomButtonClickable[i] = zoomedBrick?.children[i] !== null;
     }
+}
+
+export function getMessageCoordinates() {
+    if (inputHandler.levelCoords === null || !mainLevel.inMap(inputHandler.levelCoords)) {
+        return add(rootBrickTopLeft, [rootBrickSize * .27, rootBrickSize * .46]);
+    }
+    return add(rootBrickTopLeft, [rootBrickSize * (inputHandler.levelCoords[0] <= .19 ? .06 : (inputHandler.levelCoords[0] >= .68 ? .55 : (inputHandler.levelCoords[0] - .13))),
+    rootBrickSize * (inputHandler.levelCoords[1] + (inputHandler.levelCoords[1] <= .75 ? .14 : -.21))]);
 }
 
 
@@ -304,7 +315,7 @@ export function drawLevel(context: CanvasRenderingContext2D) {
 
     let bricksCurrent: Brick[];
     let bricksNext: Brick[] = [mainLevel.rootBrick];
-    for (let depth = 0; bricksNext.length > 0 && depth < zoomCoords.path.length + BRICK_MAX_DEPTH + 2; depth++) {
+    for (let depth = 0; bricksNext.length > 0 && depth < zoomCoords.path.length + BRICK_MAX_DEPTH + 4; depth++) {
         bricksCurrent = bricksNext;
         bricksNext = [];
         for (let i = 0; i < bricksCurrent.length; i++) {
@@ -324,6 +335,19 @@ export function drawLevel(context: CanvasRenderingContext2D) {
     }
 
     context.restore();
+
+    if (animationList[AnimationType.DepthWarning].length > 0) {
+        const warningAnim = animationList[AnimationType.DepthWarning][0] as AnimationDepthWarning;
+        context.textAlign = "left";
+        context.textBaseline = "top";
+        context.font = `${18 * textRatio}px Recurso`;
+        context.fillStyle = PALETTE[3];
+        context.fillRect(warningAnim.coords[0] - 5 * textRatio, warningAnim.coords[1] - 4 * textRatio, 187 * textRatio, 24 * textRatio);
+        context.fillRect(warningAnim.coords[0] + 10 * textRatio, warningAnim.coords[1] + 19 * textRatio, 201 * textRatio, 24 * textRatio);
+        context.fillStyle = PALETTE[0];
+        context.fillText("Too small to select!", warningAnim.coords[0], warningAnim.coords[1]);
+        context.fillText("Zoom in to go further", warningAnim.coords[0] + 15 * textRatio, warningAnim.coords[1] + 22 * textRatio);
+    }
 
     context.save();
     context.beginPath();

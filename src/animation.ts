@@ -1,4 +1,4 @@
-import { Level, timestepGlobal, add, scale, mainLevel, ZoomType, clamp, inputHandler, zoomCoords, Coordinates, setZoomCoords, updateZoomState } from "./internal";
+import { Level, timestepGlobal, add, scale, mainLevel, ZoomType, clamp, inputHandler, zoomCoords, Coordinates, setZoomCoords, updateZoomState, usedZoom, getMessageCoordinates } from "./internal";
 
 class Animatable {
     readonly startTime: number;
@@ -12,16 +12,19 @@ class Animatable {
 }
 
 export enum AnimationType {
-    Zoom = 400
+    Zoom = 400,
+    DepthWarning
 }
 
 export const ZOOM_MILLISECONDS = 350;
+export const DEPTH_WARNING_MILLISECONDS = 1000;
 
 /**
- * Zoom can have max 1 Animatable
+ * Zoom/DepthWarning can have max 1 Animatable
  */
 export const animationList: Record<AnimationType, Animatable[]> = {
-    [AnimationType.Zoom]: []
+    [AnimationType.Zoom]: [],
+    [AnimationType.DepthWarning]: []
 } as const;
 
 export function initAnimation() {
@@ -40,17 +43,22 @@ export function updateAnimationList() {
 
         for (let i = animationList[animationType].length - 1; i >= 0; i--) {
             const element = animationList[animationType][i];
-            if (timestepGlobal > element.startTime + element.duration) {
+            if (element.duration >= 0 &&
+                timestepGlobal > element.startTime + element.duration) {
                 animationList[animationType][i].destruct();
                 animationList[animationType].splice(i, 1);
             }
         }
     }
 
-    // if zoom have 2+ animation, remove old ones
+    // if zoom/depth warning have 2+ animation, remove old ones
     if (animationList[AnimationType.Zoom].length > 1) {
         console.warn(`${animationList[AnimationType.Zoom].length} zoom animations registered`);
         animationList[AnimationType.Zoom] = animationList[AnimationType.Zoom].slice(-1);
+    }
+    if (animationList[AnimationType.DepthWarning].length > 1) {
+        console.warn(`${animationList[AnimationType.DepthWarning].length} depth-warning animations registered`);
+        animationList[AnimationType.DepthWarning] = animationList[AnimationType.DepthWarning].slice(-1);
     }
 }
 
@@ -79,7 +87,7 @@ function compareAnimationEnds(a: Animatable, b: Animatable) {
 }
 
 /**
- * an animatable class which controls normal player move
+ * zoom animation class
  */
 export class AnimationZoom extends Animatable {
     readonly zoomType: ZoomType;
@@ -118,4 +126,41 @@ export function registerZoomAnim(zoomType: ZoomType, childIndex: number | null) 
     }
     animationList[AnimationType.Zoom].push(new AnimationZoom(timestepGlobal, zoomType, childIndex));
     inputHandler.blockInput();
+}
+
+/**
+ * animation class of warning about clicking small bricks
+ */
+export class AnimationDepthWarning extends Animatable {
+    readonly coords: Readonly<number[]>;
+    /** whether the player has seen this animation */
+    static seen: boolean = false;
+
+    constructor(startTime: number, coords: Readonly<number[]>) {
+        super(startTime, usedZoom && AnimationDepthWarning.seen ? DEPTH_WARNING_MILLISECONDS : -1);
+        this.coords = coords;
+    }
+
+    destruct(): void {
+        AnimationDepthWarning.seen = true;
+    }
+}
+
+/**
+ * register depth warning animation
+ * @param coords absolute coordinates to display the warningtype
+ */
+export function registerDepthWarningAnim() {
+    if (animationList[AnimationType.DepthWarning].length > 0) {
+        console.warn("can't register 2+ zoom animation at the same time");
+        return;
+    }
+    animationList[AnimationType.DepthWarning].push(new AnimationDepthWarning(timestepGlobal, getMessageCoordinates()));
+}
+
+export function closeDepthWarning() {
+    while (animationList[AnimationType.DepthWarning].length > 0) {
+        const warningAnim = animationList[AnimationType.DepthWarning].pop() as AnimationDepthWarning;
+        warningAnim.destruct();
+    }
 }
