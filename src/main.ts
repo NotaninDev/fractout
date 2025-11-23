@@ -1,4 +1,4 @@
-import { Level, PALETTE, initializeDrawer, drawLevel, setBrickSize, drawUi, inputHandler, mainLevels, metaLevel, drawWinMessage } from "./internal";
+import { Level, PALETTE, initializeDrawer, drawLevel, setBrickSize, drawUi, inputHandler, mainLevels, metaLevel, drawWinMessage, evaluateUiClick } from "./internal";
 import recursoUrl from "./fonts/recurso-sans/RecursoSans-SemiBold.ttf";
 import ubuntuUrl from "./fonts/ubuntu-font-family-0.83/Ubuntu-M.ttf";
 
@@ -84,8 +84,6 @@ function updateFrameRate() {
 export let timestepGlobal = 0;
 // main loop; game logic lives here
 function every_frame(cur_timestamp: number) {
-  inputHandler.unblockInput();
-
   timestepGlobal = cur_timestamp;
   updateFrameRate();
 
@@ -101,6 +99,7 @@ function every_frame(cur_timestamp: number) {
 
   // update
   mainLevel.updateState();
+  evaluateUiClick();
   metaLevel.update();
 
   // draw
@@ -124,6 +123,7 @@ function every_frame(cur_timestamp: number) {
 
 document.addEventListener("mousedown", inputHandler.mouseDownListener.bind(inputHandler));
 document.addEventListener("mouseup", inputHandler.mouseUpListener.bind(inputHandler));
+document.addEventListener("mousemove", inputHandler.mouseMoveListener.bind(inputHandler));
 document.addEventListener("keydown", inputHandler.keyDownListener.bind(inputHandler));
 document.addEventListener("keyup", inputHandler.keyUpListener.bind(inputHandler));
 

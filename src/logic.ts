@@ -1,4 +1,4 @@
-import { initialState, InputHandler, inputHandler, lerp, LevelTemplate, updateAnimationList } from "./internal";
+import { initialState, InputHandler, inputHandler, lerp, LevelTemplate, updateAnimationList, updateZoomState, zoomCoords } from "./internal";
 
 export const CENTURY_MILLISECONDS = 1000 * 60 * 60 * 24 * 366 * 100;
 
@@ -71,7 +71,7 @@ function generateRandomArray(size: number, rangeMin: number = 0, rangeMax: numbe
  * counting root brick as 0.
  * if the max depth is set to 9, the game needs at least 512px with each smallest brick size set to 1px.
  */
-export const BRICK_MAX_DEPTH = 6;
+export const BRICK_MAX_DEPTH = 5;
 
 export class Brick {
     readonly coords: Coordinates;
@@ -106,7 +106,8 @@ export class Brick {
             console.error(`cannot break; has a hole in ${getPositionString(this.holeIndex)}`);
             return false;
         }
-        if (this.coords.path.length >= BRICK_MAX_DEPTH) {
+        if (this.coords.path.length >= zoomCoords.path.length + BRICK_MAX_DEPTH) {
+            // todo: register zoom warning animation
             return false;
         }
         for (let i = 0; i < this.children.length; i++) {
@@ -252,9 +253,16 @@ export class Level {
     toChildBrickCoords(rawCoords: Readonly<number[]>) {
         if (!this.inMap(rawCoords)) return null;
 
+        // get the zoomed-in brick
         let currentBrick: Brick | null = this.rootBrick;
-        let scaledCoords = Array.from(rawCoords);
         const brickPath = [];
+        for (let i = 0; i < zoomCoords.path.length && currentBrick !== null; i++) {
+            currentBrick = currentBrick.children[zoomCoords.path[i]];
+            brickPath.push(zoomCoords.path[i]);
+        }
+
+        // get the clicked brick
+        let scaledCoords = Array.from(rawCoords);
         while (currentBrick !== null) {
             const isLeft = scaledCoords[0] < .5;
             const isUp = scaledCoords[1] < .5;
@@ -375,19 +383,19 @@ export class Level {
         updateAnimationList();
 
         if (inputHandler.mouseDownEventUnused) {
-            inputHandler.mouseDownEventUnused = false;
 
             if (inputHandler.mouseButton === 0 && inputHandler.levelCoords !== null) {
                 const clickCoords = this.toChildBrickCoords(inputHandler.levelCoords);
                 if (clickCoords !== null) {
+                    inputHandler.mouseDownEventUnused = false;
                     const clickedBrick = this.getBrickByCoords(new Coordinates(clickCoords.path.slice(0, -1)));
                     if (clickedBrick !== null && clickedBrick.isIntact() &&
                         this.clickables.get(clickedBrick)?.includes(clickCoords.path[clickCoords.path.length - 1])) {
-                        if (clickedBrick.coords.path.length >= BRICK_MAX_DEPTH) {
-                        }
-                        else if (clickedBrick.break(clickCoords.path[clickCoords.path.length - 1])) {
+                        if (clickedBrick.break(clickCoords.path[clickCoords.path.length - 1])) {
                             this.clickables = this.getClickablesFromClickCoords(clickCoords);
                             // todo: push to undoStack
+
+                            updateZoomState();
                         }
                     }
                 }

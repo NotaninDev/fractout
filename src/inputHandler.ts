@@ -1,8 +1,9 @@
-import { Direction, editorMode, coordsWindowToCoordsLevel, setEditorMode, coordsInPlayArea } from "./internal";
+import { Direction, editorMode, coordsWindowToCoordsLevel, setEditorMode, coordsInPlayArea, timestepGlobal } from "./internal";
 
 export class InputHandler {
     blocked: boolean;
     currentKey: InputHandler.KeyName;
+    windowCoords: Readonly<number[]> | null;
     /**
      * Mouse coordinates in the level where the mouse was clicked last time.
      * Projected to [0, 1] range.
@@ -16,6 +17,7 @@ export class InputHandler {
     private keyDown: Record<InputHandler.KeyName, boolean>;
     constructor() {
         this.blocked = false;
+        this.windowCoords = null;
         this.levelCoords = null;
         this.mouseButton = null;
         this.currentKey = InputHandler.KeyName.None;
@@ -45,6 +47,8 @@ export class InputHandler {
 
 
     mouseDownListener(event: MouseEvent) {
+        if (this.blocked) return;
+        this.windowCoords = [event.offsetX, event.offsetY];
         if (coordsInPlayArea([event.offsetX, event.offsetY])) {
             this.mouseDownEventUnused = true;
             this.mouseUpEventUnused = false;
@@ -66,6 +70,10 @@ export class InputHandler {
         else {
             this.mouseUpEventUnused = true;
         }
+    }
+
+    mouseMoveListener(event: MouseEvent) {
+        this.windowCoords = [event.offsetX, event.offsetY];
     }
 
     keyDownListener(event: KeyboardEvent) {
