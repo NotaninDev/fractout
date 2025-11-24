@@ -469,6 +469,21 @@ export class Level {
         this.win = this.targets.every(target => target.isSatisfied());
     }
 
+    canUndo() {
+        // todo: implement this
+        return true;
+    }
+
+    canRedo() {
+        // todo: implement this
+        return false;
+    }
+
+    canRestart() {
+        // todo: implement this
+        return true;
+    }
+
     private restoreCleanState() {
         this.undoStack.commit();
 

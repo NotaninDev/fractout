@@ -23,7 +23,7 @@ fontUbuntu.load().then((font) => {
   console.log(`failed loading font Ubuntu: ${result}`);
 });
 
-export const uiRatio = .0;
+export const uiRatio = .18;
 function getLevelCenter() {
   return [canvas.width * (.5 + uiRatio / 2), canvas.height / 2];
 }
@@ -108,7 +108,7 @@ function every_frame(cur_timestamp: number) {
   ctx.fillStyle = PALETTE[1]; // background color
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   drawLevel(ctx);
-  drawUi(ctx, uiCenter);
+  drawUi(ctx, [canvas.width * uiRatio, canvas.height], uiCenter);
   drawWinMessage(ctx, [canvas.width * (1 - uiRatio), canvas.height], levelCenter);
 
   if (editorMode) {

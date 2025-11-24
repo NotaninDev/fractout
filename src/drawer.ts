@@ -89,26 +89,25 @@ export function initializeDrawer(levelAttr: Level) {
 
 /**
  * set brick size and its top-left coordinates
- * @param canvasSize [width, height]
+ * @param maxCanvasSize [width, height]
  * @param levelCenter [x, y]
  */
-export function setBrickSize(canvasSize: Readonly<number[]>, levelCenter: Readonly<number[]>) {
-    const maxWidth = (Math.min(levelCenter[0], canvasSize[0] - levelCenter[0]) - PLAY_AREA_MARGIN_SIZE) * 2;
-    const maxHeight = (Math.min(levelCenter[1], canvasSize[1] - levelCenter[1]) - PLAY_AREA_MARGIN_SIZE) * 2;
+export function setBrickSize(maxCanvasSize: Readonly<number[]>, levelCenter: Readonly<number[]>) {
+    playAreaCenter = levelCenter.map((x) => Math.round(x));
+
     /** smallest possible size of the root brick in pixel */
     const minRootBrickSize = MIN_BRICK_SIZE * Math.pow(2, BRICK_MAX_DEPTH);
     const minPlayAreaSize = minRootBrickSize + MIN_BRICK_VIEW_PADDING_SIZE * 2 + MIN_ZOOM_BUTTON_AREA_SIZE * 2;
     /** ratio of the size of the drawn brick to its smallest possible size */
-    let brickRatio = Math.max(1, Math.min(maxWidth, maxHeight) / minPlayAreaSize);
+    let brickRatio = Math.max(1, (Math.min(maxCanvasSize[0], maxCanvasSize[1]) - PLAY_AREA_MARGIN_SIZE * 2) / minPlayAreaSize);
     rootBrickSize = Math.floor(minRootBrickSize * brickRatio / 2) * 2;
     brickRatio = rootBrickSize / minRootBrickSize;
-    rootBrickTopLeft = add(levelCenter, scale([1, 1], -rootBrickSize / 2));
+    rootBrickTopLeft = add(playAreaCenter, scale([1, 1], -rootBrickSize / 2));
     brickViewTopLeft = add(rootBrickTopLeft, scale([1, 1], -MIN_BRICK_VIEW_PADDING_SIZE * brickRatio));
     brickViewSize = rootBrickSize + MIN_BRICK_VIEW_PADDING_SIZE * brickRatio * 2;
 
     zoomButtonAreaSize = MIN_ZOOM_BUTTON_AREA_SIZE * brickRatio;
     playAreaTopLeft = add(brickViewTopLeft, scale([1, 1], -zoomButtonAreaSize));
-    playAreaCenter = levelCenter;
     playAreaSize = brickViewSize + zoomButtonAreaSize * 2;
 
     textRatio = brickRatio;
@@ -401,12 +400,49 @@ export function drawWinMessage(context: CanvasRenderingContext2D, canvasSize: Re
     // todo: implement this
 }
 
+const UI_BUTTON_MARGIN_RATIO = .04;
+const UI_BUTTON_AREA_WIDTH_RATIO = .54;
+const UI_BUTTON_AREA_HEIGHT_RATIO = .8;
+const UI_BUTTON_SELECTOR_OFFSET_RATIO = .1;
+
 /**
  * draw level number etc.
  * @param context context
+ * @param canvasSize canvas size; [width, height]
  * @param center center of the ui panel
  */
-export function drawUi(context: CanvasRenderingContext2D, center: number[]) {
+export function drawUi(context: CanvasRenderingContext2D, canvasSize: Readonly<number[]>, center: number[]) {
+    const widthConstrained = canvasSize[0] * (UI_BUTTON_AREA_WIDTH_RATIO - UI_BUTTON_MARGIN_RATIO * 2) <= canvasSize[1] * ((UI_BUTTON_AREA_HEIGHT_RATIO - UI_BUTTON_MARGIN_RATIO * 4) / 3);
+    const uiButtonSize = widthConstrained ? (canvasSize[0] * (UI_BUTTON_AREA_WIDTH_RATIO - UI_BUTTON_MARGIN_RATIO * 2)) : (canvasSize[1] * ((UI_BUTTON_AREA_HEIGHT_RATIO - UI_BUTTON_MARGIN_RATIO * 4) / 3));
+    const uiButtonMarginSize = (widthConstrained ? canvasSize[0] : canvasSize[1]) * UI_BUTTON_MARGIN_RATIO;
+
+    const buttonActive = [mainLevel.canUndo(), mainLevel.canRedo(), mainLevel.canRestart()];
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.font = `${uiButtonSize * .22}px Recurso`;
+    context.fillStyle = PALETTE[3];
+    context.strokeStyle = PALETTE[0];
+    context.lineWidth = uiButtonSize * .05;
+    for (let i = 0; i < 3; i++) {
+        context.beginPath();
+        context.roundRect(uiButtonMarginSize, canvasSize[1] - (uiButtonMarginSize + uiButtonSize) * (3 - i), uiButtonSize, uiButtonSize, uiButtonMarginSize);
+        context.fill();
+        context.beginPath();
+        if (buttonActive[i]) {
+            context.roundRect(
+                uiButtonMarginSize + uiButtonSize * UI_BUTTON_SELECTOR_OFFSET_RATIO,
+                canvasSize[1] - uiButtonMarginSize * (3 - i) - uiButtonSize * (3 - i - UI_BUTTON_SELECTOR_OFFSET_RATIO),
+                uiButtonSize * (1 - UI_BUTTON_SELECTOR_OFFSET_RATIO * 2),
+                uiButtonSize * (1 - UI_BUTTON_SELECTOR_OFFSET_RATIO * 2),
+                uiButtonSize * .05);
+            context.stroke();
+        }
+    }
+    context.fillStyle = PALETTE[0];
+    context.fillText("UNDO", uiButtonMarginSize + uiButtonSize / 2, canvasSize[1] - uiButtonMarginSize * 3 - uiButtonSize * 2.5);
+    context.fillText("REDO", uiButtonMarginSize + uiButtonSize / 2, canvasSize[1] - uiButtonMarginSize * 2 - uiButtonSize * 1.5);
+    context.fillText("RESET", uiButtonMarginSize + uiButtonSize / 2, canvasSize[1] - uiButtonMarginSize * 1 - uiButtonSize * .5);
+
 }
 
 function drawBrick(context: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, brick: Brick) {
