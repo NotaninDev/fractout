@@ -1,4 +1,4 @@
-import { animationList, AnimationType, closeDepthWarning, initialState, InputHandler, inputHandler, lerp, LevelTemplate, registerDepthWarningAnim, updateAnimationList, updateZoomState, zoomCoords } from "./internal";
+import { animationList, AnimationType, closeDepthWarning, getUiButtonClick, initialState, InputHandler, inputHandler, lerp, LevelTemplate, registerDepthWarningAnim, setZoomCoords, UiButtonType, updateAnimationList, updateZoomState, zoomCoords } from "./internal";
 
 export const CENTURY_MILLISECONDS = 1000 * 60 * 60 * 24 * 366 * 100;
 
@@ -216,8 +216,10 @@ export class Target {
 export class Level {
     rootBrick: Brick;
     readonly targets!: Readonly<Target[]>;
-    /** map from a brick to the indice of its clickable children */
-    clickables: Map<Brick, Readonly<number[]>>;
+    /** map from a brick to the s of its clickable children */
+    clickables: Map<Coordinates, Readonly<number[]>>;
+    /** initial zoomCoords *within a turn*, not in this level's initial state */
+    initialZoomCoords: Coordinates;
 
     /** tracks if any moves were made since the initial state */
     moved: boolean;
@@ -230,7 +232,9 @@ export class Level {
 
         this.rootBrick = new Brick(new Coordinates([]), null);
         this.clickables = new Map();
-        this.clickables.set(this.rootBrick, [0, 1, 2, 3]);
+        this.clickables.set(this.rootBrick.coords, [0, 1, 2, 3]);
+        this.initialZoomCoords = new Coordinates([]);
+        setZoomCoords(this.initialZoomCoords);
 
         this.win = false;
         this.moved = false;
@@ -303,7 +307,7 @@ export class Level {
     /**
      * get all bricks and their clickable children when the brick at the given coordinates is clicked
      * @param clickCoords the coordinates to get neighboring bricks of
-     * @returns map from brick to its clickable children's indice
+     * @returns map from brick to its clickable children's indices
      */
     getClickablesFromClickCoords(clickCoords: Coordinates) {
 
@@ -316,7 +320,7 @@ export class Level {
             return y >= 0 && y < 4 && x + y != 3;
         }
         const directionOffsets = [-2, +1, +2, -1];
-        const clickables: Map<Brick, Readonly<number[]>> = new Map();
+        const clickables: Map<Coordinates, Readonly<number[]>> = new Map();
         for (let direction = 0; direction < directionOffsets.length; direction++) {
             const newPath = Array.from(clickCoords.path);
             const offset = directionOffsets[direction];
@@ -338,39 +342,39 @@ export class Level {
             const neighborCoords = neighborBrick.coords;
             if (neighborCoords.isAncestorOf(clickCoords)) continue;
             if (!neighborCoords.isEqual(newCoords)) {
-                clickables.set(neighborBrick, [newPath[neighborCoords.path.length]]);
+                clickables.set(neighborCoords, [newPath[neighborCoords.path.length]]);
                 continue;
             }
 
             // neighbor's decendants
-            const validChildIndice: number[] = [];
+            const validChildIndices: number[] = [];
             const decendantStack: Brick[] = [neighborBrick];
             switch (direction) {
                 case 0:
-                    validChildIndice.push(2);
-                    validChildIndice.push(3);
+                    validChildIndices.push(2);
+                    validChildIndices.push(3);
                     break;
                 case 1:
-                    validChildIndice.push(0);
-                    validChildIndice.push(2);
+                    validChildIndices.push(0);
+                    validChildIndices.push(2);
                     break;
                 case 2:
-                    validChildIndice.push(0);
-                    validChildIndice.push(1);
+                    validChildIndices.push(0);
+                    validChildIndices.push(1);
                     break;
                 case 3:
-                    validChildIndice.push(1);
-                    validChildIndice.push(3);
+                    validChildIndices.push(1);
+                    validChildIndices.push(3);
                     break;
             }
             while (decendantStack.length > 0) {
                 const currentDecendant = decendantStack.pop() as Brick;
                 if (currentDecendant.isIntact()) {
-                    clickables.set(currentDecendant, validChildIndice);
+                    clickables.set(currentDecendant.coords, validChildIndices);
                     continue;
                 }
-                for (let i = 0; i < validChildIndice.length; i++) {
-                    const nextDecendant = currentDecendant.children[validChildIndice[i]];
+                for (let i = 0; i < validChildIndices.length; i++) {
+                    const nextDecendant = currentDecendant.children[validChildIndices[i]];
                     if (nextDecendant !== null) {
                         decendantStack.push(nextDecendant);
                     }
@@ -378,6 +382,21 @@ export class Level {
             }
         }
         return clickables;
+    }
+
+    /**
+     * get clickable indices of the brick at the given coordinates. you need to use this function instead of `Level.clickable.get` because two different `Coordinates` objects are evaluated to no equal even if they represent the same coordinates in the game.
+     * it takes `O(n)` where `n` is the size of `this.clickables`.
+     * @param coords coordinates of the brick
+     * @returns clickable indices if some of the child indices of the brick at the coordinates are clickable. `null` otherwise.
+     */
+    getClickableIndicesByCoords(coords: Coordinates) {
+        for (const [clickableCoords, childIndece] of this.clickables) {
+            if (coords.isEqual(clickableCoords)) {
+                return childIndece;
+            }
+        }
+        return null;
     }
 
     updateState() {
@@ -397,8 +416,8 @@ export class Level {
                             const clickedBrick = this.getBrickByCoords(new Coordinates(clickCoords.path.slice(0, -1)));
                             if (clickedBrick !== null) {
                                 let rejectDepth = false;
-                                for (const [clickableBrick, _] of this.clickables) {
-                                    if (clickableBrick.coords.isEqual(clickCoords) || clickableBrick.coords.isDecendantOf(clickCoords)) {
+                                for (const [clickableCoords, _] of this.clickables) {
+                                    if (clickableCoords.isEqual(clickCoords) || clickableCoords.isDecendantOf(clickCoords)) {
                                         rejectDepth = true;
                                         break;
                                     }
@@ -407,11 +426,23 @@ export class Level {
                                     registerDepthWarningAnim();
                                 }
                                 else if (clickedBrick.isIntact() &&
-                                    this.clickables.get(clickedBrick)?.includes(clickCoords.path[clickCoords.path.length - 1])) {
+                                    this.getClickableIndicesByCoords(clickedBrick.coords)?.includes(clickCoords.path[clickCoords.path.length - 1])) {
                                     if (clickedBrick.break(clickCoords.path[clickCoords.path.length - 1])) {
-                                        this.clickables = this.getClickablesFromClickCoords(clickCoords);
-                                        // todo: push to undoStack
+                                        if (!this.moved) {
+                                            this.undoStack.nextDiff.moved = this.moved;
+                                        }
+                                        this.undoStack.nextDiff.unbreakCoords = [clickedBrick.coords];
+                                        this.undoStack.nextDiff.clickables = this.clickables;
+                                        if (!this.initialZoomCoords.isEqual(zoomCoords)) {
+                                            this.undoStack.nextDiff.initialZoomCoords = this.initialZoomCoords;
+                                        }
+                                        this.undoStack.commit();
+                                        this.redoStack.clear();
 
+                                        this.moved = true;
+                                        this.clickables = this.getClickablesFromClickCoords(clickCoords);
+                                        this.initialZoomCoords = zoomCoords;
+                                        this.updateWin();
                                         updateZoomState();
                                     }
                                 }
@@ -420,42 +451,65 @@ export class Level {
                     }
                 }
             }
-        }
-        else if (inputHandler.keyDownEventUnused) {
-            inputHandler.keyDownEventUnused = false;
 
-            if (inputHandler.currentKey === InputHandler.KeyName.Undo) {
-                if (this.undoStack.hasDiffs()) {
-                    const diff = this.undoStack.pop();
-                    if (diff !== undefined) {
-                        this.redoStack.nextDiff = this.reverseDiff(diff);
-                        this.redoStack.commit();
-                        this.applyDiff(diff);
-                        this.updateWin();
-                    }
-                }
-            }
-            else if (inputHandler.currentKey === InputHandler.KeyName.Redo) {
-                if (this.redoStack.hasDiffs()) {
-                    const diff = this.redoStack.pop();
-                    if (diff !== undefined) {
-                        this.undoStack.nextDiff = this.reverseDiff(diff);
-                        this.undoStack.commit();
-                        this.applyDiff(diff);
-                        this.updateWin();
-                    }
-                }
-            }
-            else if (inputHandler.currentKey === InputHandler.KeyName.Restart) {
-                if (this.moved) {
-                    this.undoStack.nextDiff.moved = this.moved;
-                    this.moved = false;
+            if (inputHandler.mouseDownEventUnused) {
+                switch (getUiButtonClick()) {
+                    case UiButtonType.Undo:
+                        if (this.canUndo()) {
+                            const diff = this.undoStack.pop() as StateDiff;
+                            this.redoStack.nextDiff = this.reverseDiff(diff);
+                            this.redoStack.commit();
+                            this.applyDiff(diff);
+                            this.updateWin();
 
-                    // todo: record current state and reset
+                            setZoomCoords(this.initialZoomCoords);
+                            updateZoomState();
+                            closeDepthWarning();
+                        }
+                        break;
+                    case UiButtonType.Redo:
+                        if (this.canRedo()) {
+                            const diff = this.redoStack.pop() as StateDiff;
+                            this.undoStack.nextDiff = this.reverseDiff(diff);
+                            this.undoStack.commit();
+                            this.applyDiff(diff);
+                            this.updateWin();
 
-                    this.undoStack.commit();
-                    this.redoStack.clear();
-                    this.win = false;
+                            setZoomCoords(this.initialZoomCoords);
+                            updateZoomState();
+                            closeDepthWarning();
+                        }
+                        break;
+                    case UiButtonType.Reset:
+                        if (this.canRestart()) {
+                            this.undoStack.nextDiff.moved = this.moved;
+                            getSortedBrokenBricks(this.rootBrick).forEach(brick => {
+                                if (brick.isIntact()) {
+                                    console.warn(`brick at ${brick.coords.path} is not broken`);
+                                    return;
+                                }
+                                this.undoStack.nextDiff.breakCoords.set(brick.coords, brick.holeIndex as number);
+                            });
+                            this.undoStack.nextDiff.clickables = this.clickables;
+                            if (zoomCoords.path.length > 0) {
+                                this.undoStack.nextDiff.initialZoomCoords = zoomCoords;
+                            }
+
+                            this.undoStack.commit();
+                            this.redoStack.clear();
+
+                            this.moved = false;
+                            this.rootBrick = new Brick(new Coordinates([]), null);
+                            this.clickables = new Map();
+                            this.clickables.set(this.rootBrick.coords, [0, 1, 2, 3]);
+                            this.updateWin();
+
+                            this.initialZoomCoords = new Coordinates([]);
+                            setZoomCoords(this.initialZoomCoords);
+                            updateZoomState();
+                            closeDepthWarning();
+                        }
+                        break;
                 }
             }
         }
@@ -466,29 +520,19 @@ export class Level {
      */
     private updateWin() {
         console.warn("`updateWin` is not functional yet");
-        this.win = this.targets.every(target => target.isSatisfied());
+        this.win = this.targets.length > 0 && this.targets.every(target => target.isSatisfied());
     }
 
     canUndo() {
-        // todo: implement this
-        return true;
+        return this.undoStack.hasDiffs();
     }
 
     canRedo() {
-        // todo: implement this
-        return false;
+        return this.redoStack.hasDiffs();
     }
 
     canRestart() {
-        // todo: implement this
-        return true;
-    }
-
-    private restoreCleanState() {
-        this.undoStack.commit();
-
-        // i don't see how committing redoStack can be useful, but just in case
-        this.redoStack.commit();
+        return this.moved;
     }
 
     applyDiff(diff: StateDiff) {
@@ -496,13 +540,39 @@ export class Level {
             this.moved = diff.moved;
         }
 
-        // if (diff.getPlayerCoords() !== undefined) {
-        //     this.player.coords = diff.getPlayerCoords() as readonly number[];
-        // }
+        if (diff.breakCoords !== undefined) {
+            for (const [coords, childIndex] of diff.breakCoords) {
+                const brick = this.getBrickByCoords(coords);
+                if (brick === null) {
+                    console.warn("brick doesn't exist at", coords.path);
+                    continue;
+                }
+                if (!brick.break(childIndex)) {
+                    console.warn("failed to break brick at", coords.path);
+                    continue;
+                }
+            }
+        }
 
-        // for (const [coords, cellType] of diff.cells) {
-        //     this.cells[coords[0]][coords[1]] = cellType;
-        // }
+        if (diff.unbreakCoords !== undefined) {
+            for (let i = 0; i < diff.unbreakCoords.length; i++) {
+                const currentBrick = this.getBrickByCoords(diff.unbreakCoords[i]);
+                if (currentBrick === null) {
+                    console.warn("brick doesn't exist at", diff.unbreakCoords[i].path);
+                    continue;
+                }
+                currentBrick.unbreak();
+            }
+        }
+
+        if (diff.clickables !== undefined) {
+            this.clickables = diff.clickables;
+        }
+
+        if (diff.initialZoomCoords !== undefined) {
+            this.initialZoomCoords = diff.initialZoomCoords;
+            setZoomCoords(this.initialZoomCoords);
+        }
     }
 
     reverseDiff(diff: StateDiff): StateDiff {
@@ -512,13 +582,38 @@ export class Level {
             reverseDiff.moved = this.moved;
         }
 
-        // if (diff.getPlayerCoords() !== undefined) {
-        //     reverseDiff.setPlayerCoords(this.player.coords);
-        // }
+        if (diff.breakCoords !== undefined) {
+            const unbreakCoords = [];
+            for (const [coords, _] of diff.breakCoords) {
+                unbreakCoords.push(coords);
+            }
+            unbreakCoords.reverse();
+            reverseDiff.unbreakCoords = unbreakCoords;
+        }
 
-        // for (const [coords, _] of diff.cells) {
-        //     reverseDiff.pushCell(coords, this.cells[coords[0]][coords[1]]);
-        // }
+        if (diff.unbreakCoords !== undefined) {
+            for (let i = diff.unbreakCoords.length - 1; i >= 0; i--) {
+                const currentUnbreakCoords = diff.unbreakCoords[i];
+                const brokenBrick = this.getBrickByCoords(currentUnbreakCoords);
+                if (brokenBrick === null) {
+                    console.warn("brick doesn't exist at", currentUnbreakCoords.path);
+                    continue;
+                }
+                if (brokenBrick.isIntact()) {
+                    console.warn("can't break brick at", currentUnbreakCoords.path);
+                    continue;
+                }
+                reverseDiff.breakCoords.set(brokenBrick.coords, brokenBrick.holeIndex as number);
+            }
+        }
+
+        if (diff.clickables !== undefined) {
+            reverseDiff.clickables = this.clickables;
+        }
+
+        if (diff.initialZoomCoords !== undefined) {
+            reverseDiff.initialZoomCoords = this.initialZoomCoords;
+        }
 
         return reverseDiff;
     }
@@ -528,9 +623,35 @@ function isDirection(x: any): x is Direction {
     return typeof x === "number" && x in Direction;
 }
 
+/**
+ * get all broken bricks recursively in the subtree rooted at the given brick. for any pair of bricks in the same lineage, the ancestor appears earlier than the decendant in the results.
+ * @param currentBrick brick
+ * @returns sorted list of all broken bricks
+ */
+function getSortedBrokenBricks(currentBrick: Brick) {
+    let sortedBricks: Brick[] = [];
+    if (currentBrick.isIntact()) return [];
+    sortedBricks.push(currentBrick);
+    for (let i = 0; i < currentBrick.children.length; i++) {
+        const childBrick = currentBrick.children[i];
+        if (childBrick !== null) {
+            sortedBricks = sortedBricks.concat(getSortedBrokenBricks(childBrick));
+        }
+    }
+    return sortedBricks;
+}
+
 class StateDiff {
     moved?: boolean;
+    /** coords need to be processed in order */
+    breakCoords: Map<Coordinates, number>;
+    /** coords need to be processed in order */
+    unbreakCoords: Readonly<Coordinates[]>;
+    clickables?: Map<Coordinates, Readonly<number[]>>;
+    initialZoomCoords?: Coordinates;
     constructor() {
+        this.breakCoords = new Map();
+        this.unbreakCoords = [];
     }
 }
 
@@ -549,7 +670,7 @@ class StateStack {
      * Rejected if nextDiff is empty.
      */
     commit() {
-        if ([this.nextDiff.moved].some(x => x !== undefined)) {
+        if ([this.nextDiff.moved, this.nextDiff.clickables, this.nextDiff.initialZoomCoords].some(x => x !== undefined) || this.nextDiff.breakCoords.size > 0 || this.nextDiff.unbreakCoords.length > 0) {
             this.stateDiffs.push(this.nextDiff);
         }
         this.nextDiff = new StateDiff();

@@ -49,14 +49,11 @@ export class InputHandler {
     mouseDownListener(event: MouseEvent) {
         if (this.blocked) return;
         this.windowCoords = [event.offsetX, event.offsetY];
+        this.mouseDownEventUnused = true;
+        this.mouseUpEventUnused = false;
+        this.mouseButton = event.button;
         if (coordsInPlayArea([event.offsetX, event.offsetY])) {
-            this.mouseDownEventUnused = true;
-            this.mouseUpEventUnused = false;
             this.levelCoords = coordsWindowToCoordsLevel([event.offsetX, event.offsetY]);
-            this.mouseButton = event.button;
-        }
-        else {
-            this.mouseButton = null;
         }
     }
 

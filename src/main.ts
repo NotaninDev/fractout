@@ -1,4 +1,4 @@
-import { Level, PALETTE, initializeDrawer, drawLevel, setBrickSize, drawUi, inputHandler, mainLevels, metaLevel, drawWinMessage, evaluateUiClick } from "./internal";
+import { Level, PALETTE, initializeDrawer, drawLevel, setBrickSize, drawUi, inputHandler, mainLevels, metaLevel, drawWinMessage, evaluateZoomButtonClick, setUiSize } from "./internal";
 import recursoUrl from "./fonts/recurso-sans/RecursoSans-SemiBold.ttf";
 import ubuntuUrl from "./fonts/ubuntu-font-family-0.83/Ubuntu-M.ttf";
 
@@ -52,16 +52,17 @@ export function setLevel(n: number) {
   mainLevel = new Level(initialState);
   initializeDrawer(mainLevel);
   setBrickSize([canvas.width * (1 - uiRatio), canvas.height], levelCenter);
+  setUiSize([canvas.width * uiRatio, canvas.height], uiCenter);
 }
 
 
 let levelCenter: number[];
 let uiCenter: number[];
-function updateCenter() {
+function updateCenters() {
   levelCenter = getLevelCenter();
   uiCenter = getUiCenter();
 }
-updateCenter();
+updateCenters();
 setLevel(levelNumber);
 
 export function setEditorMode(flag: boolean) {
@@ -93,13 +94,14 @@ function every_frame(cur_timestamp: number) {
     canvas.width = canvas.clientWidth;
     canvas.height = canvas.clientHeight;
     ctx.imageSmoothingEnabled = false;
-    updateCenter();
+    updateCenters();
     setBrickSize([canvas.width * (1 - uiRatio), canvas.height], levelCenter);
+    setUiSize([canvas.width * uiRatio, canvas.height], uiCenter);
   }
 
   // update
   mainLevel.updateState();
-  evaluateUiClick();
+  evaluateZoomButtonClick();
   metaLevel.update();
 
   // draw
@@ -108,7 +110,7 @@ function every_frame(cur_timestamp: number) {
   ctx.fillStyle = PALETTE[1]; // background color
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   drawLevel(ctx);
-  drawUi(ctx, [canvas.width * uiRatio, canvas.height], uiCenter);
+  drawUi(ctx);
   drawWinMessage(ctx, [canvas.width * (1 - uiRatio), canvas.height], levelCenter);
 
   if (editorMode) {

@@ -93,7 +93,7 @@ export function initializeDrawer(levelAttr: Level) {
  * @param levelCenter [x, y]
  */
 export function setBrickSize(maxCanvasSize: Readonly<number[]>, levelCenter: Readonly<number[]>) {
-    playAreaCenter = levelCenter.map((x) => Math.round(x));
+    playAreaCenter = levelCenter.map(Math.round);
 
     /** smallest possible size of the root brick in pixel */
     const minRootBrickSize = MIN_BRICK_SIZE * Math.pow(2, BRICK_MAX_DEPTH);
@@ -111,6 +111,18 @@ export function setBrickSize(maxCanvasSize: Readonly<number[]>, levelCenter: Rea
     playAreaSize = brickViewSize + zoomButtonAreaSize * 2;
 
     textRatio = brickRatio;
+}
+
+let uiTopLeft: Readonly<number[]>;
+let uiAreaSize: Readonly<number[]>;
+let uiButtonSize: number;
+let uiButtonMarginSize: number;
+export function setUiSize(canvasSize: Readonly<number[]>, center: number[]) {
+    uiTopLeft = add(center, scale(canvasSize, -.5)).map(Math.round);
+    uiAreaSize = canvasSize;
+    const widthConstrained = canvasSize[0] * (UI_BUTTON_AREA_WIDTH_RATIO - UI_BUTTON_MARGIN_RATIO * 2) <= canvasSize[1] * ((UI_BUTTON_AREA_HEIGHT_RATIO - UI_BUTTON_MARGIN_RATIO * 4) / 3);
+    uiButtonSize = widthConstrained ? (canvasSize[0] * (UI_BUTTON_AREA_WIDTH_RATIO - UI_BUTTON_MARGIN_RATIO * 2)) : (canvasSize[1] * ((UI_BUTTON_AREA_HEIGHT_RATIO - UI_BUTTON_MARGIN_RATIO * 4) / 3));
+    uiButtonMarginSize = (widthConstrained ? canvasSize[0] : canvasSize[1]) * UI_BUTTON_MARGIN_RATIO;
 }
 
 export function setZoomCoords(coords: Coordinates) {
@@ -152,13 +164,41 @@ export function coordsInPlayArea(coordsWindow: Readonly<number[]>) {
 }
 
 
+
+export enum UiButtonType {
+    None = 200,
+    Undo,
+    Redo,
+    Reset
+}
+export function getUiButtonClick() {
+    if (inputHandler.mouseDownEventUnused && inputHandler.mouseButton === 0 && inputHandler.windowCoords !== null) {
+        if (mainLevel.canUndo() &&
+            inButtonRect(inputHandler.windowCoords, [uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * 3], uiButtonSize)) {
+            inputHandler.mouseDownEventUnused = false;
+            return UiButtonType.Undo;
+        }
+        if (mainLevel.canRedo() &&
+            inButtonRect(inputHandler.windowCoords, [uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * 2], uiButtonSize)) {
+            inputHandler.mouseDownEventUnused = false;
+            return UiButtonType.Redo;
+        }
+        if (mainLevel.canRestart() &&
+            inButtonRect(inputHandler.windowCoords, [uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * 1], uiButtonSize)) {
+            inputHandler.mouseDownEventUnused = false;
+            return UiButtonType.Reset;
+        }
+    }
+    return UiButtonType.None;
+}
+
+
 const zoomButtonClickable = [false, false, false, false];
 export let usedZoom = false;
 
-export function evaluateUiClick() {
-    if (inputHandler.mouseDownEventUnused) {
+export function evaluateZoomButtonClick() {
+    if (inputHandler.mouseDownEventUnused && inputHandler.mouseButton === 0) {
         if (inputHandler.windowCoords !== null) {
-            inputHandler.mouseDownEventUnused = false;
             const activeZoomButton = getActiveZoomButton(inputHandler.windowCoords);
             if (activeZoomButton !== null) {
                 const zoomType = activeZoomButton["type"];
@@ -188,6 +228,7 @@ export function evaluateUiClick() {
 
                 if (zoomType === ZoomType.Out && zoomCoords.path.length == 0) return;
                 if (zoomType === ZoomType.In && !zoomButtonClickable[childIndex!]) return;
+                inputHandler.mouseDownEventUnused = false;
                 registerZoomAnim(zoomType, childIndex);
                 closeDepthWarning();
                 usedZoom = true;
@@ -211,26 +252,27 @@ function getActiveZoomButton(coordsWindow: Readonly<number[]>) {
     if (timestepGlobal === 0 || coordsWindow.length !== 2) {
         return null;
     }
-    if (inZoomButtonRect(coordsWindow, playAreaTopLeft)) return { "type": ZoomType.In, "rotation": 0 };
-    if (inZoomButtonRect(coordsWindow, add(playAreaTopLeft, [playAreaSize - zoomButtonAreaSize, 0]))) return { "type": ZoomType.In, "rotation": 1 };
-    if (inZoomButtonRect(coordsWindow, add(playAreaTopLeft, [playAreaSize - zoomButtonAreaSize, playAreaSize - zoomButtonAreaSize]))) return { "type": ZoomType.In, "rotation": 2 };
-    if (inZoomButtonRect(coordsWindow, add(playAreaTopLeft, [0, playAreaSize - zoomButtonAreaSize]))) return { "type": ZoomType.In, "rotation": 3 };
+    if (inButtonRect(coordsWindow, playAreaTopLeft, zoomButtonAreaSize)) return { "type": ZoomType.In, "rotation": 0 };
+    if (inButtonRect(coordsWindow, add(playAreaTopLeft, [playAreaSize - zoomButtonAreaSize, 0]), zoomButtonAreaSize)) return { "type": ZoomType.In, "rotation": 1 };
+    if (inButtonRect(coordsWindow, add(playAreaTopLeft, [playAreaSize - zoomButtonAreaSize, playAreaSize - zoomButtonAreaSize]), zoomButtonAreaSize)) return { "type": ZoomType.In, "rotation": 2 };
+    if (inButtonRect(coordsWindow, add(playAreaTopLeft, [0, playAreaSize - zoomButtonAreaSize]), zoomButtonAreaSize)) return { "type": ZoomType.In, "rotation": 3 };
 
-    if (inZoomButtonRect(coordsWindow, add(playAreaTopLeft, [(playAreaSize - zoomButtonAreaSize) / 2, 0]))) return { "type": ZoomType.Out, "rotation": 0 };
-    if (inZoomButtonRect(coordsWindow, add(playAreaTopLeft, [playAreaSize - zoomButtonAreaSize, (playAreaSize - zoomButtonAreaSize) / 2]))) return { "type": ZoomType.Out, "rotation": 1 };
-    if (inZoomButtonRect(coordsWindow, add(playAreaTopLeft, [(playAreaSize - zoomButtonAreaSize) / 2, playAreaSize - zoomButtonAreaSize]))) return { "type": ZoomType.Out, "rotation": 2 };
-    if (inZoomButtonRect(coordsWindow, add(playAreaTopLeft, [0, (playAreaSize - zoomButtonAreaSize) / 2]))) return { "type": ZoomType.Out, "rotation": 3 };
+    if (inButtonRect(coordsWindow, add(playAreaTopLeft, [(playAreaSize - zoomButtonAreaSize) / 2, 0]), zoomButtonAreaSize)) return { "type": ZoomType.Out, "rotation": 0 };
+    if (inButtonRect(coordsWindow, add(playAreaTopLeft, [playAreaSize - zoomButtonAreaSize, (playAreaSize - zoomButtonAreaSize) / 2]), zoomButtonAreaSize)) return { "type": ZoomType.Out, "rotation": 1 };
+    if (inButtonRect(coordsWindow, add(playAreaTopLeft, [(playAreaSize - zoomButtonAreaSize) / 2, playAreaSize - zoomButtonAreaSize]), zoomButtonAreaSize)) return { "type": ZoomType.Out, "rotation": 2 };
+    if (inButtonRect(coordsWindow, add(playAreaTopLeft, [0, (playAreaSize - zoomButtonAreaSize) / 2]), zoomButtonAreaSize)) return { "type": ZoomType.Out, "rotation": 3 };
     return null;
 }
 
 /**
- * private helper function; check if the given coordinates is on the zoom button given by top-left coordinates
+ * private helper function; check if the given coordinates is on the button given by top-left coordinates
  * @param coordsWindow [x, y]; absolute coordinates in the window
  * @param topLeft [x, y]; top-left coordinates of the zoom button
+ * @param buttonSize size of the button in pixels
  * @returns if the given coordinates is in the button area
  */
-function inZoomButtonRect(coordsWindow: Readonly<number[]>, topLeft: Readonly<number[]>) {
-    return coordsWindow[0] >= topLeft[0] && coordsWindow[0] <= topLeft[0] + zoomButtonAreaSize && coordsWindow[1] >= topLeft[1] && coordsWindow[1] <= topLeft[1] + zoomButtonAreaSize;
+function inButtonRect(coordsWindow: Readonly<number[]>, topLeft: Readonly<number[]>, buttonSize: number) {
+    return coordsWindow[0] >= topLeft[0] && coordsWindow[0] <= topLeft[0] + buttonSize && coordsWindow[1] >= topLeft[1] && coordsWindow[1] <= topLeft[1] + buttonSize;
 }
 
 /**
@@ -411,11 +453,7 @@ const UI_BUTTON_SELECTOR_OFFSET_RATIO = .1;
  * @param canvasSize canvas size; [width, height]
  * @param center center of the ui panel
  */
-export function drawUi(context: CanvasRenderingContext2D, canvasSize: Readonly<number[]>, center: number[]) {
-    const widthConstrained = canvasSize[0] * (UI_BUTTON_AREA_WIDTH_RATIO - UI_BUTTON_MARGIN_RATIO * 2) <= canvasSize[1] * ((UI_BUTTON_AREA_HEIGHT_RATIO - UI_BUTTON_MARGIN_RATIO * 4) / 3);
-    const uiButtonSize = widthConstrained ? (canvasSize[0] * (UI_BUTTON_AREA_WIDTH_RATIO - UI_BUTTON_MARGIN_RATIO * 2)) : (canvasSize[1] * ((UI_BUTTON_AREA_HEIGHT_RATIO - UI_BUTTON_MARGIN_RATIO * 4) / 3));
-    const uiButtonMarginSize = (widthConstrained ? canvasSize[0] : canvasSize[1]) * UI_BUTTON_MARGIN_RATIO;
-
+export function drawUi(context: CanvasRenderingContext2D) {
     const buttonActive = [mainLevel.canUndo(), mainLevel.canRedo(), mainLevel.canRestart()];
     context.textAlign = "center";
     context.textBaseline = "middle";
@@ -425,13 +463,13 @@ export function drawUi(context: CanvasRenderingContext2D, canvasSize: Readonly<n
     context.lineWidth = uiButtonSize * .05;
     for (let i = 0; i < 3; i++) {
         context.beginPath();
-        context.roundRect(uiButtonMarginSize, canvasSize[1] - (uiButtonMarginSize + uiButtonSize) * (3 - i), uiButtonSize, uiButtonSize, uiButtonMarginSize);
+        context.roundRect(uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * (3 - i), uiButtonSize, uiButtonSize, uiButtonMarginSize);
         context.fill();
         context.beginPath();
         if (buttonActive[i]) {
             context.roundRect(
-                uiButtonMarginSize + uiButtonSize * UI_BUTTON_SELECTOR_OFFSET_RATIO,
-                canvasSize[1] - uiButtonMarginSize * (3 - i) - uiButtonSize * (3 - i - UI_BUTTON_SELECTOR_OFFSET_RATIO),
+                uiTopLeft[0] + uiButtonMarginSize + uiButtonSize * UI_BUTTON_SELECTOR_OFFSET_RATIO,
+                uiTopLeft[1] + uiAreaSize[1] - uiButtonMarginSize * (3 - i) - uiButtonSize * (3 - i - UI_BUTTON_SELECTOR_OFFSET_RATIO),
                 uiButtonSize * (1 - UI_BUTTON_SELECTOR_OFFSET_RATIO * 2),
                 uiButtonSize * (1 - UI_BUTTON_SELECTOR_OFFSET_RATIO * 2),
                 uiButtonSize * .05);
@@ -439,9 +477,9 @@ export function drawUi(context: CanvasRenderingContext2D, canvasSize: Readonly<n
         }
     }
     context.fillStyle = PALETTE[0];
-    context.fillText("UNDO", uiButtonMarginSize + uiButtonSize / 2, canvasSize[1] - uiButtonMarginSize * 3 - uiButtonSize * 2.5);
-    context.fillText("REDO", uiButtonMarginSize + uiButtonSize / 2, canvasSize[1] - uiButtonMarginSize * 2 - uiButtonSize * 1.5);
-    context.fillText("RESET", uiButtonMarginSize + uiButtonSize / 2, canvasSize[1] - uiButtonMarginSize * 1 - uiButtonSize * .5);
+    context.fillText("UNDO", uiTopLeft[0] + uiButtonMarginSize + uiButtonSize / 2, uiTopLeft[1] + uiAreaSize[1] - uiButtonMarginSize * 3 - uiButtonSize * 2.5);
+    context.fillText("REDO", uiTopLeft[0] + uiButtonMarginSize + uiButtonSize / 2, uiTopLeft[1] + uiAreaSize[1] - uiButtonMarginSize * 2 - uiButtonSize * 1.5);
+    context.fillText("RESET", uiTopLeft[0] + uiButtonMarginSize + uiButtonSize / 2, uiTopLeft[1] + uiAreaSize[1] - uiButtonMarginSize * 1 - uiButtonSize * .5);
 
 }
 
@@ -472,10 +510,11 @@ function drawBrick(context: CanvasRenderingContext2D, x0: number, y0: number, x1
     context.drawImage(leavesTexture, x0, y0, x1 - x0, y1 - y0)
 
     // draw clickable sign
-    if (mainLevel.clickables.has(brick)) {
+    let clickableIndices = mainLevel.getClickableIndicesByCoords(brick.coords);
+    if (clickableIndices !== null) {
         const xCenter = (x0 + x1) / 2;
         const yCenter = (y0 + y1) / 2;
-        for (const i of mainLevel.clickables.get(brick) as number[]) {
+        for (const i of clickableIndices) {
             context.save();
             context.translate(xCenter, yCenter);
             switch (i) {
