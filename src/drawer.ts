@@ -123,7 +123,7 @@ let scoreWidth: number;
 let scoreTopLeft: Readonly<number[]>;
 export function setUiSize(canvasSize: Readonly<number[]>, center: number[]) {
     // ui buttons
-    uiTopLeft = add(center, scale(canvasSize, -.5)).map(Math.round);
+    uiTopLeft = add(center, [canvasSize[0] * (.5 - UI_BUTTON_AREA_WIDTH_RATIO), canvasSize[1] * -.5]).map(Math.round);
     uiAreaSize = canvasSize;
     const uiButtonWidthConstrained = canvasSize[0] * (UI_BUTTON_AREA_WIDTH_RATIO - UI_BUTTON_MARGIN_RATIO * 2) <= canvasSize[1] * ((UI_BUTTON_AREA_HEIGHT_RATIO - UI_BUTTON_MARGIN_RATIO * 4) / 3);
     uiButtonSize = uiButtonWidthConstrained ? (canvasSize[0] * (UI_BUTTON_AREA_WIDTH_RATIO - UI_BUTTON_MARGIN_RATIO * 2)) : (canvasSize[1] * ((UI_BUTTON_AREA_HEIGHT_RATIO - UI_BUTTON_MARGIN_RATIO * 4) / 3));
@@ -133,7 +133,7 @@ export function setUiSize(canvasSize: Readonly<number[]>, center: number[]) {
     scoreHeartSize = Math.min((uiAreaSize[0] * (1 - UI_BUTTON_AREA_WIDTH_RATIO) * SCORE_HEART_WIDTH_RATIO), (uiAreaSize[1] * (1 - SCORE_VERTICAL_MARGIN_RATIO * 2) / (mainLevel.hearts.length - SCORE_VERTICAL_STACK_RATIO * (mainLevel.hearts.length - 1))));
     scoreWidth = scoreHeartSize / SCORE_HEART_WIDTH_RATIO;
     const scoreHeight = scoreHeartSize * (mainLevel.hearts.length - SCORE_VERTICAL_STACK_RATIO * (mainLevel.hearts.length - 1));
-    scoreTopLeft = add(uiTopLeft, [uiAreaSize[0] * UI_BUTTON_AREA_WIDTH_RATIO + (uiAreaSize[0] * (1 - UI_BUTTON_AREA_WIDTH_RATIO) - scoreWidth) / 2, (uiAreaSize[1] - scoreHeight) / 2]);
+    scoreTopLeft = add(center, scale(canvasSize, -.5), [(uiAreaSize[0] * (1 - UI_BUTTON_AREA_WIDTH_RATIO) - scoreWidth) / 2, (uiAreaSize[1] - scoreHeight) / 2]).map(Math.round);
 }
 
 export function setZoomCoords(coords: Coordinates) {

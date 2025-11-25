@@ -25,10 +25,10 @@ fontUbuntu.load().then((font) => {
 
 export const uiRatio = .18;
 function getLevelCenter() {
-  return [canvas.width * (.5 + uiRatio / 2), canvas.height / 2];
+  return [canvas.width * (.5 - uiRatio / 2), canvas.height / 2];
 }
 function getUiCenter() {
-  return [canvas.width * uiRatio / 2, canvas.height / 2];
+  return [canvas.width * (1 - uiRatio / 2), canvas.height / 2];
 }
 
 
