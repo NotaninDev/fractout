@@ -104,11 +104,6 @@ export class Brick {
             console.error(`cannot break; has a hole in ${getPositionString(this.holeIndex)}`);
             return false;
         }
-        if (this.coords.path.length >= zoomCoords.path.length + BRICK_MAX_DEPTH) {
-            console.warn(`can't break brick at relative depth ${this.coords.path.length - zoomCoords.path.length}`);
-            registerDepthWarningAnim();
-            return false;
-        }
         for (let i = 0; i < this.children.length; i++) {
             if (i === breakIndex) continue;
             const childBrick = new Brick(new Coordinates(this.coords.path.concat(i)), this);
