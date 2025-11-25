@@ -1,6 +1,4 @@
-import { animationList, AnimationType, closeDepthWarning, getUiButtonClick, initialState, InputHandler, inputHandler, lerp, LevelTemplate, registerDepthWarningAnim, setZoomCoords, UiButtonType, updateAnimationList, updateZoomState, zoomCoords } from "./internal";
-
-export const CENTURY_MILLISECONDS = 1000 * 60 * 60 * 24 * 366 * 100;
+import { AnimationHeartbreak, animationList, AnimationType, closeDepthWarning, getUiButtonClick, initialState, InputHandler, inputHandler, lerp, LevelTemplate, registerDepthWarningAnim, registerHeartbreakAnim, setZoomCoords, UiButtonType, updateAnimationList, updateZoomState, zoomCoords } from "./internal";
 
 export enum Direction {
     Up = 0,
@@ -195,29 +193,38 @@ export class Coordinates {
     }
 }
 
-export class Target {
-    readonly level: Level;
-    readonly coords: Coordinates;
+export enum HeartState {
+    Hidden = 100,
+    Found,
+    Broken
+}
 
-    constructor(level: Level, coords: Coordinates) {
-        this.level = level;
+export class Heart {
+    readonly coords: Coordinates;
+    state: HeartState;
+
+    constructor(coords: Coordinates) {
         this.coords = coords;
+        this.state = HeartState.Hidden;
     }
 
     /**
-     * tbd
-     * @returns whether this target's condition is satisfied
+     * @returns whether this heart's win condition is satisfied
      */
     isSatisfied() {
-        return false;
+        return this.state === HeartState.Found || this.state === HeartState.Broken;
     }
 }
 
 export class Level {
     rootBrick: Brick;
-    readonly targets!: Readonly<Target[]>;
+    readonly hearts!: Readonly<Heart[]>;
     /** map from a brick to the s of its clickable children */
     clickables: Map<Coordinates, Readonly<number[]>>;
+    /**
+     * map of bricks to list of hearts drawn on them. this is a cache.
+     * */
+    heartParents: Map<Brick, Heart[]>;
     /** initial zoomCoords *within a turn*, not in this level's initial state */
     initialZoomCoords: Coordinates;
 
@@ -228,11 +235,13 @@ export class Level {
     redoStack: StateStack;
 
     constructor(template: LevelTemplate) {
-        this.targets = template.targets.map(coords => new Target(this, coords));
+        this.hearts = template.hearts.map(coords => new Heart(coords));
 
         this.rootBrick = new Brick(new Coordinates([]), null);
         this.clickables = new Map();
         this.clickables.set(this.rootBrick.coords, [0, 1, 2, 3]);
+        this.heartParents = new Map();
+        this.updateHeartState(true);
         this.initialZoomCoords = new Coordinates([]);
         setZoomCoords(this.initialZoomCoords);
 
@@ -399,11 +408,19 @@ export class Level {
         return null;
     }
 
+    /**
+     * @param brick brick
+     * @returns whether the given brick cannot be clicked because of hearts
+     */
+    getBlockedByHeart(brick: Brick) {
+        return this.heartParents.has(brick) && this.heartParents.get(brick)!.some((heart) => heart.state === HeartState.Found);
+    }
+
     updateState() {
         updateAnimationList();
 
-        if (inputHandler.mouseDownEventUnused) {
-            if (inputHandler.mouseButton === 0 && inputHandler.levelCoords !== null) {
+        if (inputHandler.mouseDownEventUnused && inputHandler.mouseButton === 0) {
+            if (inputHandler.levelCoords !== null && !this.win) {
                 if (this.inMap(inputHandler.levelCoords)) {
                     if (animationList[AnimationType.DepthWarning].length > 0) {
                         inputHandler.mouseDownEventUnused = false;
@@ -427,23 +444,25 @@ export class Level {
                                 }
                                 else if (clickedBrick.isIntact() &&
                                     this.getClickableIndicesByCoords(clickedBrick.coords)?.includes(clickCoords.path[clickCoords.path.length - 1])) {
-                                    if (clickedBrick.break(clickCoords.path[clickCoords.path.length - 1])) {
-                                        if (!this.moved) {
-                                            this.undoStack.nextDiff.moved = this.moved;
-                                        }
-                                        this.undoStack.nextDiff.unbreakCoords = [clickedBrick.coords];
-                                        this.undoStack.nextDiff.clickables = this.clickables;
-                                        if (!this.initialZoomCoords.isEqual(zoomCoords)) {
-                                            this.undoStack.nextDiff.initialZoomCoords = this.initialZoomCoords;
-                                        }
-                                        this.undoStack.commit();
-                                        this.redoStack.clear();
+                                    if (!this.getBlockedByHeart(clickedBrick)) {
+                                        if (clickedBrick.break(clickCoords.path[clickCoords.path.length - 1])) {
+                                            if (!this.moved) {
+                                                this.undoStack.nextDiff.moved = this.moved;
+                                            }
+                                            this.undoStack.nextDiff.unbreakCoords = [clickedBrick.coords];
+                                            this.undoStack.nextDiff.clickables = this.clickables;
+                                            if (!this.initialZoomCoords.isEqual(zoomCoords)) {
+                                                this.undoStack.nextDiff.initialZoomCoords = this.initialZoomCoords;
+                                            }
+                                            this.undoStack.commit();
+                                            this.redoStack.clear();
 
-                                        this.moved = true;
-                                        this.clickables = this.getClickablesFromClickCoords(clickCoords);
-                                        this.initialZoomCoords = zoomCoords;
-                                        this.updateWin();
-                                        updateZoomState();
+                                            this.moved = true;
+                                            this.clickables = this.getClickablesFromClickCoords(clickCoords);
+                                            this.initialZoomCoords = zoomCoords;
+                                            this.updateWin(false);
+                                            updateZoomState();
+                                        }
                                     }
                                 }
                             }
@@ -460,7 +479,7 @@ export class Level {
                             this.redoStack.nextDiff = this.reverseDiff(diff);
                             this.redoStack.commit();
                             this.applyDiff(diff);
-                            this.updateWin();
+                            this.updateWin(true);
 
                             setZoomCoords(this.initialZoomCoords);
                             updateZoomState();
@@ -473,7 +492,7 @@ export class Level {
                             this.undoStack.nextDiff = this.reverseDiff(diff);
                             this.undoStack.commit();
                             this.applyDiff(diff);
-                            this.updateWin();
+                            this.updateWin(true);
 
                             setZoomCoords(this.initialZoomCoords);
                             updateZoomState();
@@ -502,7 +521,7 @@ export class Level {
                             this.rootBrick = new Brick(new Coordinates([]), null);
                             this.clickables = new Map();
                             this.clickables.set(this.rootBrick.coords, [0, 1, 2, 3]);
-                            this.updateWin();
+                            this.updateWin(true);
 
                             this.initialZoomCoords = new Coordinates([]);
                             setZoomCoords(this.initialZoomCoords);
@@ -516,11 +535,54 @@ export class Level {
     }
 
     /**
-     * update win state
+     * update heart states and map cache of bricks to lists of hearts
+     * @param skipAnimation whether to skip animation
      */
-    private updateWin() {
-        console.warn("`updateWin` is not functional yet");
-        this.win = this.targets.length > 0 && this.targets.every(target => target.isSatisfied());
+    private updateHeartState(skipAnimation: boolean) {
+        this.heartParents.clear();
+        for (const heart of this.hearts) {
+            const oldState = heart.state;
+            const brick = this.getAncestorBrickByCoords(heart.coords);
+            if (brick.coords.isEqual(heart.coords)) {
+                heart.state = HeartState.Found;
+            }
+            else {
+                if (brick.coords.path.length >= heart.coords.path.length) {
+                    console.warn("failed to get brick of heart ", heart.coords.path);
+                    continue;
+                }
+                if (brick.holeIndex === heart.coords.path[brick.coords.path.length]) {
+                    heart.state = HeartState.Broken;
+                }
+                else if (brick.isIntact()) {
+                    heart.state = HeartState.Hidden;
+                }
+                else {
+                    console.warn("invalid path for heart", heart.coords.path);
+                    continue;
+                }
+            }
+            if (!this.heartParents.has(brick)) {
+                this.heartParents.set(brick, []);
+            }
+            this.heartParents.get(brick)!.push(heart);
+
+            if (oldState === HeartState.Hidden && heart.state === HeartState.Broken) {
+                registerHeartbreakAnim(heart, skipAnimation);
+            }
+            else if (oldState === HeartState.Broken && heart.state === HeartState.Hidden) {
+                AnimationHeartbreak.remove(heart);
+            }
+        }
+    }
+
+    /**
+     * update win state
+     * @param skipAnimation whether to skip animation
+     */
+    private updateWin(skipAnimation: boolean) {
+        this.updateHeartState(skipAnimation);
+        this.win = this.hearts.length > 0 && this.hearts.every(heart => heart.isSatisfied());
     }
 
     canUndo() {

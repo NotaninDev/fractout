@@ -1,4 +1,4 @@
-import { Level, timestepGlobal, add, scale, mainLevel, ZoomType, clamp, inputHandler, zoomCoords, Coordinates, setZoomCoords, updateZoomState, usedZoom, getMessageCoordinates } from "./internal";
+import { Level, timestepGlobal, add, scale, mainLevel, ZoomType, clamp, inputHandler, zoomCoords, Coordinates, setZoomCoords, updateZoomState, usedZoom, getMessageCoordinates, Heart } from "./internal";
 
 class Animatable {
     readonly startTime: number;
@@ -13,18 +13,19 @@ class Animatable {
 
 export enum AnimationType {
     Zoom = 400,
-    DepthWarning
+    DepthWarning,
+    Heartbreak
 }
 
-export const ZOOM_MILLISECONDS = 350;
-export const DEPTH_WARNING_MILLISECONDS = 1000;
+export const CENTURY_MILLISECONDS = 1000 * 60 * 60 * 24 * 366 * 100;
 
 /**
  * Zoom/DepthWarning can have max 1 Animatable
  */
 export const animationList: Record<AnimationType, Animatable[]> = {
     [AnimationType.Zoom]: [],
-    [AnimationType.DepthWarning]: []
+    [AnimationType.DepthWarning]: [],
+    [AnimationType.Heartbreak]: []
 } as const;
 
 export function initAnimation() {
@@ -33,6 +34,7 @@ export function initAnimation() {
         const animationType = Number(key) as AnimationType;
         animationList[animationType].length = 0;
     }
+    AnimationHeartbreak.heartToAnim.clear();
 }
 
 export function updateAnimationList() {
@@ -86,6 +88,8 @@ function compareAnimationEnds(a: Animatable, b: Animatable) {
     else return (a.startTime + a.duration) - (b.startTime + b.duration);
 }
 
+export const ZOOM_MILLISECONDS = 350;
+
 /**
  * zoom animation class
  */
@@ -128,6 +132,8 @@ export function registerZoomAnim(zoomType: ZoomType, childIndex: number | null) 
     inputHandler.blockInput();
 }
 
+export const DEPTH_WARNING_MILLISECONDS = 1000;
+
 /**
  * animation class of warning about clicking small bricks
  */
@@ -163,4 +169,56 @@ export function closeDepthWarning() {
         const warningAnim = animationList[AnimationType.DepthWarning].pop() as AnimationDepthWarning;
         warningAnim.destruct();
     }
+}
+
+export const HEARTBREAK_MILLISECONDS = 250;
+
+/**
+ * heartbreak animation class
+ */
+export class AnimationHeartbreak extends Animatable {
+    static readonly heartToAnim: Map<Heart, AnimationHeartbreak> = new Map();
+
+    heart: Heart;
+
+    constructor(startTime: number, heart: Heart) {
+        super(startTime, -1);
+        this.heart = heart;
+        AnimationHeartbreak.heartToAnim.set(heart, this);
+    }
+
+    /** remove heartbreak animation associated to the given heart */
+    static remove(heart: Heart) {
+        for (let i = 0; i < animationList[AnimationType.Heartbreak].length; i++) {
+            const heartbreakAnim = animationList[AnimationType.Heartbreak][i] as AnimationHeartbreak;
+            if (heartbreakAnim.heart === heart) {
+                animationList[AnimationType.Heartbreak].splice(i, 1);
+                heartbreakAnim.destruct();
+                break;
+            }
+        }
+    }
+
+    destruct(): void {
+        AnimationHeartbreak.heartToAnim.delete(this.heart);
+    }
+
+    /**
+     * get how far in time the animation has played
+     * @returns time scale between [0, 1]
+     */
+    getTimeRatio() {
+        const t = clamp(0, 1, (timestepGlobal - this.startTime) / HEARTBREAK_MILLISECONDS)
+        return 1 - (1 - t) * (1 - t);
+    }
+}
+
+/**
+ * register heartbreak animation
+ * @param heart heart to associate
+ * @param skip whether to skip the animation to the end
+ */
+export function registerHeartbreakAnim(heart: Heart, skip: boolean) {
+    AnimationHeartbreak.remove(heart);
+    animationList[AnimationType.Heartbreak].push(new AnimationHeartbreak(skip ? -CENTURY_MILLISECONDS : timestepGlobal, heart));
 }

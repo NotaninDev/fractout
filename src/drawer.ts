@@ -1,4 +1,4 @@
-import { Level, add, scale, levelNumber, mainLevel, timestepGlobal, BRICK_MAX_DEPTH, Brick, Coordinates, inputHandler, registerZoomAnim, animationList, AnimationType, AnimationZoom, AnimationDepthWarning, closeDepthWarning } from "./internal";
+import { Level, add, scale, levelNumber, mainLevel, timestepGlobal, BRICK_MAX_DEPTH, Brick, Coordinates, inputHandler, registerZoomAnim, animationList, AnimationType, AnimationZoom, AnimationDepthWarning, closeDepthWarning, Heart, HeartState, editorMode, AnimationHeartbreak } from "./internal";
 
 export function lerp(a: number, b: number, t: number) {
     return a * (1 - t) + b * t;
@@ -47,7 +47,8 @@ export function imageFromUrl(url: string): Promise<HTMLImageElement> {
 
 export const PALETTE = ["#ffebd8", "#ff7f00", "#4f67ff", "#19011a"] as const;
 
-const leavesTexture = await imageFromName("leaves", "svg");
+const whiteLeavesTexture = await imageFromName("white leaves", "svg");
+const blackLeavesTexture = await imageFromName("black leaves", "svg");
 const selectorTexture = await imageFromName("leaf selector", "svg");
 const zoomInTexture = await imageFromName("zoom in DR", "svg");
 const zoomInSelectorTexture = await imageFromName("zoom in selector DR", "svg");
@@ -117,12 +118,22 @@ let uiTopLeft: Readonly<number[]>;
 let uiAreaSize: Readonly<number[]>;
 let uiButtonSize: number;
 let uiButtonMarginSize: number;
+let scoreHeartSize: number;
+let scoreWidth: number;
+let scoreTopLeft: Readonly<number[]>;
 export function setUiSize(canvasSize: Readonly<number[]>, center: number[]) {
+    // ui buttons
     uiTopLeft = add(center, scale(canvasSize, -.5)).map(Math.round);
     uiAreaSize = canvasSize;
-    const widthConstrained = canvasSize[0] * (UI_BUTTON_AREA_WIDTH_RATIO - UI_BUTTON_MARGIN_RATIO * 2) <= canvasSize[1] * ((UI_BUTTON_AREA_HEIGHT_RATIO - UI_BUTTON_MARGIN_RATIO * 4) / 3);
-    uiButtonSize = widthConstrained ? (canvasSize[0] * (UI_BUTTON_AREA_WIDTH_RATIO - UI_BUTTON_MARGIN_RATIO * 2)) : (canvasSize[1] * ((UI_BUTTON_AREA_HEIGHT_RATIO - UI_BUTTON_MARGIN_RATIO * 4) / 3));
-    uiButtonMarginSize = (widthConstrained ? canvasSize[0] : canvasSize[1]) * UI_BUTTON_MARGIN_RATIO;
+    const uiButtonWidthConstrained = canvasSize[0] * (UI_BUTTON_AREA_WIDTH_RATIO - UI_BUTTON_MARGIN_RATIO * 2) <= canvasSize[1] * ((UI_BUTTON_AREA_HEIGHT_RATIO - UI_BUTTON_MARGIN_RATIO * 4) / 3);
+    uiButtonSize = uiButtonWidthConstrained ? (canvasSize[0] * (UI_BUTTON_AREA_WIDTH_RATIO - UI_BUTTON_MARGIN_RATIO * 2)) : (canvasSize[1] * ((UI_BUTTON_AREA_HEIGHT_RATIO - UI_BUTTON_MARGIN_RATIO * 4) / 3));
+    uiButtonMarginSize = (uiButtonWidthConstrained ? canvasSize[0] : canvasSize[1]) * UI_BUTTON_MARGIN_RATIO;
+
+    // score
+    scoreHeartSize = Math.min((uiAreaSize[0] * (1 - UI_BUTTON_AREA_WIDTH_RATIO) * SCORE_HEART_WIDTH_RATIO), (uiAreaSize[1] * (1 - SCORE_VERTICAL_MARGIN_RATIO * 2) / (mainLevel.hearts.length - SCORE_VERTICAL_STACK_RATIO * (mainLevel.hearts.length - 1))));
+    scoreWidth = scoreHeartSize / SCORE_HEART_WIDTH_RATIO;
+    const scoreHeight = scoreHeartSize * (mainLevel.hearts.length - SCORE_VERTICAL_STACK_RATIO * (mainLevel.hearts.length - 1));
+    scoreTopLeft = add(uiTopLeft, [uiAreaSize[0] * UI_BUTTON_AREA_WIDTH_RATIO + (uiAreaSize[0] * (1 - UI_BUTTON_AREA_WIDTH_RATIO) - scoreWidth) / 2, (uiAreaSize[1] - scoreHeight) / 2]);
 }
 
 export function setZoomCoords(coords: Coordinates) {
@@ -365,6 +376,9 @@ export function drawLevel(context: CanvasRenderingContext2D) {
                 drawBrick(context, x0, y0, x1, y1, brick);
             }
             else {
+                if (mainLevel.heartParents.has(brick)) {
+                    drawBrokenHearts(context, x0, y0, x1, y1, brick);
+                }
                 for (let i = 0; i < brick.children.length; i++) {
                     const child = brick.children[i];
                     if (child !== null) {
@@ -443,9 +457,12 @@ export function drawWinMessage(context: CanvasRenderingContext2D, canvasSize: Re
 }
 
 const UI_BUTTON_MARGIN_RATIO = .04;
-const UI_BUTTON_AREA_WIDTH_RATIO = .54;
+const UI_BUTTON_AREA_WIDTH_RATIO = .4;
 const UI_BUTTON_AREA_HEIGHT_RATIO = .8;
 const UI_BUTTON_SELECTOR_OFFSET_RATIO = .1;
+const SCORE_HEART_WIDTH_RATIO = .6;
+const SCORE_VERTICAL_MARGIN_RATIO = .02;
+const SCORE_VERTICAL_STACK_RATIO = .08;
 
 /**
  * draw level number etc.
@@ -454,6 +471,7 @@ const UI_BUTTON_SELECTOR_OFFSET_RATIO = .1;
  * @param center center of the ui panel
  */
 export function drawUi(context: CanvasRenderingContext2D) {
+    // draw buttons
     const buttonActive = [mainLevel.canUndo(), mainLevel.canRedo(), mainLevel.canRestart()];
     context.textAlign = "center";
     context.textBaseline = "middle";
@@ -481,6 +499,28 @@ export function drawUi(context: CanvasRenderingContext2D) {
     context.fillText("REDO", uiTopLeft[0] + uiButtonMarginSize + uiButtonSize / 2, uiTopLeft[1] + uiAreaSize[1] - uiButtonMarginSize * 2 - uiButtonSize * 1.5);
     context.fillText("RESET", uiTopLeft[0] + uiButtonMarginSize + uiButtonSize / 2, uiTopLeft[1] + uiAreaSize[1] - uiButtonMarginSize * 1 - uiButtonSize * .5);
 
+    // draw scores
+    context.fillStyle = PALETTE[3];
+    for (let i = 0; i < mainLevel.hearts.length; i++) {
+        const heart = mainLevel.hearts[i];
+        const heartTopLeft = add(scoreTopLeft, [i % 2 === 0 ? 0 : (scoreWidth * (1 - SCORE_HEART_WIDTH_RATIO)), scoreHeartSize * (1 - SCORE_VERTICAL_STACK_RATIO) * i]);
+        switch (heart.state) {
+            case HeartState.Hidden:
+                context.beginPath();
+                context.arc(heartTopLeft[0] + scoreHeartSize / 2, heartTopLeft[1] + scoreHeartSize / 2, scoreHeartSize * .12, 0, Math.PI * 2);
+                context.fill();
+                break;
+
+            case HeartState.Found:
+                context.drawImage(heartTexture, heartTopLeft[0], heartTopLeft[1], scoreHeartSize, scoreHeartSize);
+                break;
+
+            case HeartState.Broken:
+                context.drawImage(brokenHeartLTexture, heartTopLeft[0] - scoreHeartSize * BROKEN_HEART_OFFSET_RATIO, heartTopLeft[1], scoreHeartSize, scoreHeartSize);
+                context.drawImage(brokenHeartRTexture, heartTopLeft[0] + scoreHeartSize * BROKEN_HEART_OFFSET_RATIO, heartTopLeft[1], scoreHeartSize, scoreHeartSize);
+                break;
+        }
+    }
 }
 
 function drawBrick(context: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, brick: Brick) {
@@ -505,35 +545,186 @@ function drawBrick(context: CanvasRenderingContext2D, x0: number, y0: number, x1
                 break;
         }
     }
+    const xCenter = (x0 + x1) / 2;
+    const yCenter = (y0 + y1) / 2;
+
+    // list hearts to draw
+    const hiddenHearts: Map<number, Heart[]> = new Map();
+    const foundHearts: Heart[] = [];
+    for (let i = 0; i < 4; i++) {
+        hiddenHearts.set(i, []);
+    }
+    mainLevel.heartParents.get(brick)?.forEach(heart => {
+        switch (heart.state) {
+            case HeartState.Hidden:
+                hiddenHearts.get(heart.coords.path[brick.coords.path.length])!.push(heart);
+                break;
+            case HeartState.Found:
+                foundHearts.push(heart);
+                break;
+            case HeartState.Broken:
+                // broken hearts shouldn't be here
+                break;
+        }
+    });
 
     // draw brick
-    context.drawImage(leavesTexture, x0, y0, x1 - x0, y1 - y0)
+    context.drawImage(foundHearts.length > 0 ? blackLeavesTexture : whiteLeavesTexture, x0, y0, x1 - x0, y1 - y0)
+
+    // draw hearts
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.font = `${(y1 - y0) * .27}px Recurso`;
+    context.fillStyle = PALETTE[3];
+    for (const [childIndex, hiddenHeartsSingleLeaf] of hiddenHearts) {
+        if (hiddenHeartsSingleLeaf.length === 0) continue;
+        const rotation = (childIndex < 2 ? childIndex : (5 - childIndex)) - .5;
+        context.save();
+        context.translate(xCenter, yCenter);
+        context.rotate(Math.PI * rotation / 2);
+        context.translate(-xCenter, -yCenter);
+        if (hiddenHeartsSingleLeaf.length <= 9) {
+            for (let i = 0; i < hiddenHeartsSingleLeaf.length; i++) {
+                const scalingFactor = getHeartCenter(i);
+                context.beginPath();
+                context.arc(lerp(x0, x1, scalingFactor[0]), lerp(y0, y1, scalingFactor[1]), (x1 - x0) * .04, 0, Math.PI * 2);
+                context.fill();
+            }
+        }
+        else {
+            context.fillText(hiddenHeartsSingleLeaf.length.toString(), xCenter, lerp(y0, y1, .13));
+        }
+        context.restore();
+    }
+    if (foundHearts.length > 0) {
+        const heartSize = (x1 - x0) * .42;
+        context.drawImage(heartTexture, xCenter - heartSize / 2, yCenter - heartSize / 2, heartSize, heartSize);
+    }
 
     // draw clickable sign
-    let clickableIndices = mainLevel.getClickableIndicesByCoords(brick.coords);
-    if (clickableIndices !== null) {
-        const xCenter = (x0 + x1) / 2;
-        const yCenter = (y0 + y1) / 2;
-        for (const i of clickableIndices) {
-            context.save();
-            context.translate(xCenter, yCenter);
-            switch (i) {
-                case 1:
-                    context.rotate(Math.PI / 2);
-                    break;
-                case 2:
-                    context.rotate(-Math.PI / 2);
-                    break;
-                case 3:
-                    context.rotate(Math.PI);
-                    break;
+    if (!mainLevel.win) {
+        let clickableIndices = mainLevel.getClickableIndicesByCoords(brick.coords);
+        if (clickableIndices !== null && foundHearts.length === 0) {
+            for (const i of clickableIndices) {
+                context.save();
+                context.translate(xCenter, yCenter);
+                switch (i) {
+                    case 1:
+                        context.rotate(Math.PI / 2);
+                        break;
+                    case 2:
+                        context.rotate(-Math.PI / 2);
+                        break;
+                    case 3:
+                        context.rotate(Math.PI);
+                        break;
 
-                default:
-                    break;
+                    default:
+                        break;
+                }
+                context.translate(-xCenter, -yCenter);
+                context.drawImage(selectorTexture, x0, y0, x1 - x0, y1 - y0)
+                context.restore();
             }
-            context.translate(-xCenter, -yCenter);
-            context.drawImage(selectorTexture, x0, y0, x1 - x0, y1 - y0)
-            context.restore();
         }
+    }
+}
+
+const BROKEN_HEART_OFFSET_RATIO = .07;
+
+function drawBrokenHearts(context: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, brick: Brick) {
+    if (brick.holeIndex === null) {
+        console.warn(`brick ${brick.coords} has no hole`);
+        return;
+    }
+
+    // set outline
+    for (let i = 0; i < brick.coords.path.length; i++) {
+        switch (brick.coords.path[i]) {
+            case 0:
+                x1 = (x0 + x1) / 2;
+                y1 = (y0 + y1) / 2;
+                break;
+            case 1:
+                x0 = (x0 + x1) / 2;
+                y1 = (y0 + y1) / 2;
+                break;
+            case 2:
+                x1 = (x0 + x1) / 2;
+                y0 = (y0 + y1) / 2;
+                break;
+            case 3:
+                x0 = (x0 + x1) / 2;
+                y0 = (y0 + y1) / 2;
+                break;
+        }
+    }
+    const xCenter = (x0 + x1) / 2;
+    const yCenter = (y0 + y1) / 2;
+
+    const hearts: Heart[] = [];
+    mainLevel.heartParents.get(brick)?.forEach(heart => {
+        switch (heart.state) {
+            case HeartState.Hidden:
+            case HeartState.Found:
+                // these hearts shouldn't be here
+                break;
+            case HeartState.Broken:
+                hearts.push(heart);
+                break;
+        }
+    });
+
+    if (hearts.length === 0) {
+        console.warn("no broken hearts on brick", brick.coords.path);
+        return;
+    }
+
+    context.save();
+    const rotation = (brick.holeIndex < 2 ? brick.holeIndex : (5 - brick.holeIndex)) - .5;
+    context.translate(xCenter, yCenter);
+    context.rotate(Math.PI * rotation / 2);
+    context.translate(-xCenter, -yCenter);
+
+    const heartSize = (x1 - x0) * .12;
+    const heartOffset = heartSize * BROKEN_HEART_OFFSET_RATIO;
+    for (let i = 0; i < Math.min(hearts.length, 9); i++) {
+        const scalingFactor = getHeartCenter(i);
+        const heartbreakAnim = AnimationHeartbreak.heartToAnim.get(hearts[i]);
+        const time = heartbreakAnim === undefined ? 1 : heartbreakAnim.getTimeRatio();
+        const heartCenterX = lerp(x0, x1, scalingFactor[0]);
+        const heartCenterY = lerp(y0, y1, scalingFactor[1]);
+        context.save();
+        context.translate(heartCenterX, heartCenterY);
+        context.rotate(Math.PI * .06);
+        context.drawImage(brokenHeartLTexture, -heartSize / 2 - heartOffset * time, -heartSize / 2, heartSize, heartSize);
+        context.drawImage(brokenHeartRTexture, -heartSize / 2 + heartOffset * time, -heartSize / 2, heartSize, heartSize);
+        context.restore();
+    }
+
+    context.restore();
+}
+
+/**
+ * get the scaling factors to get the coordinates of a heart
+ * @param i index of the heart within a leaf
+ * @returns scaling factors, each element is used in a lerp function; [x, y]
+ */
+function getHeartCenter(i: number) {
+    switch (i) {
+        case 0:
+        case 1:
+        case 2:
+            return [.5, .271 - i * .15];
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+            return [.56 - (i % 2) * .12, .196 - Math.floor((i - 3) / 2) * .15];
+        case 7:
+        case 8:
+            return [.62 - (i - 7) * .24, .121];
+        default:
+            return [0, .1];
     }
 }
