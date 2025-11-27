@@ -14,18 +14,20 @@ class Animatable {
 export enum AnimationType {
     Zoom = 400,
     DepthWarning,
-    Heartbreak
+    Heartbreak,
+    Win,
 }
 
 export const CENTURY_MILLISECONDS = 1000 * 60 * 60 * 24 * 366 * 100;
 
 /**
- * Zoom/DepthWarning can have max 1 Animatable
+ * Zoom/DepthWarning/Win can have max 1 Animatable
  */
 export const animationList: Record<AnimationType, Animatable[]> = {
     [AnimationType.Zoom]: [],
     [AnimationType.DepthWarning]: [],
-    [AnimationType.Heartbreak]: []
+    [AnimationType.Heartbreak]: [],
+    [AnimationType.Win]: [],
 } as const;
 
 export function initAnimation() {
@@ -53,7 +55,7 @@ export function updateAnimationList() {
         }
     }
 
-    // if zoom/depth warning have 2+ animation, remove old ones
+    // if zoom/depth-warning/win have 2+ animation, remove old ones
     if (animationList[AnimationType.Zoom].length > 1) {
         console.warn(`${animationList[AnimationType.Zoom].length} zoom animations registered`);
         animationList[AnimationType.Zoom] = animationList[AnimationType.Zoom].slice(-1);
@@ -61,6 +63,10 @@ export function updateAnimationList() {
     if (animationList[AnimationType.DepthWarning].length > 1) {
         console.warn(`${animationList[AnimationType.DepthWarning].length} depth-warning animations registered`);
         animationList[AnimationType.DepthWarning] = animationList[AnimationType.DepthWarning].slice(-1);
+    }
+    if (animationList[AnimationType.Win].length > 1) {
+        console.warn(`${animationList[AnimationType.Win].length} win animations registered`);
+        animationList[AnimationType.Win] = animationList[AnimationType.Win].slice(-1);
     }
 }
 
@@ -158,7 +164,7 @@ export class AnimationDepthWarning extends Animatable {
  */
 export function registerDepthWarningAnim() {
     if (animationList[AnimationType.DepthWarning].length > 0) {
-        console.warn("can't register 2+ zoom animation at the same time");
+        console.warn("can't register 2+ depth warning animation at the same time");
         return;
     }
     animationList[AnimationType.DepthWarning].push(new AnimationDepthWarning(timestepGlobal, getMessageCoordinates()));
@@ -208,7 +214,7 @@ export class AnimationHeartbreak extends Animatable {
      * @returns time scale between [0, 1]
      */
     getTimeRatio() {
-        const t = clamp(0, 1, (timestepGlobal - this.startTime) / HEARTBREAK_MILLISECONDS)
+        const t = clamp(0, 1, (timestepGlobal - this.startTime) / HEARTBREAK_MILLISECONDS);
         return 1 - (1 - t) * (1 - t);
     }
 }
@@ -221,4 +227,70 @@ export class AnimationHeartbreak extends Animatable {
 export function registerHeartbreakAnim(heart: Heart, skip: boolean) {
     AnimationHeartbreak.remove(heart);
     animationList[AnimationType.Heartbreak].push(new AnimationHeartbreak(skip ? -CENTURY_MILLISECONDS : timestepGlobal, heart));
+}
+
+export const WIN_SCORE_CYCLE_PERIOD_MILLISECONDS = 2000;
+/** time to delay score heart animation per each heart above the animated heart */
+export const WIN_SCORE_DELAY_MILLISECONDS = 60;
+/** time it takes for a score heart to beat */
+export const WIN_SCORE_BEAT_MILLISECONDS = 250;
+export const WIN_MESSAGE_MILLISECONDS = 800;
+
+/**
+ * win message animation class
+ */
+export class AnimationWin extends Animatable {
+    /** whether to skip win message animation */
+    skip: boolean;
+    /** time to delay win message animation */
+    winMessageDelayMilliseconds: number;
+
+    constructor(startTime: number, skip: boolean) {
+        super(startTime, -1);
+        this.skip = skip
+        this.winMessageDelayMilliseconds = WIN_SCORE_DELAY_MILLISECONDS * (mainLevel.hearts.length - 1) + WIN_SCORE_BEAT_MILLISECONDS;
+    }
+
+    /** remove win animation */
+    static remove() {
+        while (animationList[AnimationType.Win].length > 0) {
+            const winAnim = animationList[AnimationType.Win].pop() as AnimationWin;
+            winAnim.destruct();
+        }
+    }
+
+    /**
+     * get the relative expansion size of the specified score heart
+     * @param i index of the heart
+     * @returns expansion scale between [0, 1]
+     */
+    getScoreBeatSizeRatio(i: number) {
+        if (timestepGlobal < this.startTime + WIN_SCORE_DELAY_MILLISECONDS * i) return 0;
+        const timeOffset = (timestepGlobal - (this.startTime + WIN_SCORE_DELAY_MILLISECONDS * i)) % WIN_SCORE_CYCLE_PERIOD_MILLISECONDS;
+        const t = timeOffset <= WIN_SCORE_BEAT_MILLISECONDS ? (timeOffset / WIN_SCORE_BEAT_MILLISECONDS) : 0;
+        return Math.sin(t * Math.PI);
+    }
+
+    /**
+     * get how far in time the win message animation has played
+     * @returns time scale between [0, 1]
+     */
+    getTimeRatio() {
+        if (this.skip) return 1;
+        const t = clamp(0, 1, (timestepGlobal - (this.startTime + this.winMessageDelayMilliseconds)) / WIN_MESSAGE_MILLISECONDS);
+        return 1 - (1 - t) * (1 - t);
+    }
+}
+
+/**
+ * register heartbreak animation
+ * @param heart heart to associate
+ * @param skipMessageAnimation whether to skip the win message animation to the end
+ */
+export function registerWinAnim(skipMessageAnimation: boolean) {
+    if (animationList[AnimationType.Win].length > 0) {
+        console.warn("can't register 2+ win animation at the same time");
+        return;
+    }
+    animationList[AnimationType.Win].push(new AnimationWin(timestepGlobal, skipMessageAnimation));
 }

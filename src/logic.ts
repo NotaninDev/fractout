@@ -1,4 +1,4 @@
-import { AnimationHeartbreak, animationList, AnimationType, closeDepthWarning, getUiButtonClick, initialState, InputHandler, inputHandler, lerp, LevelTemplate, registerDepthWarningAnim, registerHeartbreakAnim, setZoomCoords, UiButtonType, updateAnimationList, updateZoomState, zoomCoords } from "./internal";
+import { AnimationHeartbreak, animationList, AnimationType, AnimationWin, closeDepthWarning, getUiButtonClick, initialState, InputHandler, inputHandler, lerp, LevelTemplate, registerDepthWarningAnim, registerHeartbreakAnim, registerWinAnim, setZoomCoords, UiButtonType, updateAnimationList, updateZoomState, zoomCoords } from "./internal";
 
 export enum Direction {
     Up = 0,
@@ -576,8 +576,11 @@ export class Level {
      * @param skipAnimation whether to skip animation
      */
     private updateWin(skipAnimation: boolean) {
+        const oldWin = this.win;
         this.updateHeartState(skipAnimation);
         this.win = this.hearts.length > 0 && this.hearts.every(heart => heart.isSatisfied());
+        if (!oldWin && this.win) registerWinAnim(skipAnimation);
+        else if (oldWin && !this.win) AnimationWin.remove();
     }
 
     canUndo() {

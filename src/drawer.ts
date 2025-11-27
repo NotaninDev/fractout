@@ -1,4 +1,4 @@
-import { Level, add, scale, levelNumber, mainLevel, timestepGlobal, BRICK_MAX_DEPTH, Brick, Coordinates, inputHandler, registerZoomAnim, animationList, AnimationType, AnimationZoom, AnimationDepthWarning, closeDepthWarning, Heart, HeartState, editorMode, AnimationHeartbreak } from "./internal";
+import { Level, add, scale, levelNumber, mainLevel, timestepGlobal, BRICK_MAX_DEPTH, Brick, Coordinates, inputHandler, registerZoomAnim, animationList, AnimationType, AnimationZoom, AnimationDepthWarning, closeDepthWarning, Heart, HeartState, editorMode, AnimationHeartbreak, AnimationWin } from "./internal";
 
 export function lerp(a: number, b: number, t: number) {
     return a * (1 - t) + b * t;
@@ -118,7 +118,7 @@ let uiTopLeft: Readonly<number[]>;
 let uiAreaSize: Readonly<number[]>;
 let uiButtonSize: number;
 let uiButtonMarginSize: number;
-let scoreHeartSize: number;
+let scoreHeartBaseSize: number;
 let scoreWidth: number;
 let scoreTopLeft: Readonly<number[]>;
 export function setUiSize(canvasSize: Readonly<number[]>, center: number[]) {
@@ -130,9 +130,9 @@ export function setUiSize(canvasSize: Readonly<number[]>, center: number[]) {
     uiButtonMarginSize = (uiButtonWidthConstrained ? canvasSize[0] : canvasSize[1]) * UI_BUTTON_MARGIN_RATIO;
 
     // score
-    scoreHeartSize = Math.min((uiAreaSize[0] * (1 - UI_BUTTON_AREA_WIDTH_RATIO) * SCORE_HEART_WIDTH_RATIO), (uiAreaSize[1] * (1 - SCORE_VERTICAL_MARGIN_RATIO * 2) / (mainLevel.hearts.length - SCORE_VERTICAL_STACK_RATIO * (mainLevel.hearts.length - 1))));
-    scoreWidth = scoreHeartSize / SCORE_HEART_WIDTH_RATIO;
-    const scoreHeight = scoreHeartSize * (mainLevel.hearts.length - SCORE_VERTICAL_STACK_RATIO * (mainLevel.hearts.length - 1));
+    scoreHeartBaseSize = Math.min((uiAreaSize[0] * (1 - UI_BUTTON_AREA_WIDTH_RATIO) * SCORE_HEART_WIDTH_RATIO), (uiAreaSize[1] * (1 - SCORE_VERTICAL_MARGIN_RATIO * 2) / (mainLevel.hearts.length - SCORE_VERTICAL_STACK_RATIO * (mainLevel.hearts.length - 1))));
+    scoreWidth = scoreHeartBaseSize / SCORE_HEART_WIDTH_RATIO;
+    const scoreHeight = scoreHeartBaseSize * (mainLevel.hearts.length - SCORE_VERTICAL_STACK_RATIO * (mainLevel.hearts.length - 1));
     scoreTopLeft = add(center, scale(canvasSize, -.5), [(uiAreaSize[0] * (1 - UI_BUTTON_AREA_WIDTH_RATIO) - scoreWidth) / 2, (uiAreaSize[1] - scoreHeight) / 2]).map(Math.round);
 }
 
@@ -463,6 +463,8 @@ const UI_BUTTON_SELECTOR_OFFSET_RATIO = .1;
 const SCORE_HEART_WIDTH_RATIO = .6;
 const SCORE_VERTICAL_MARGIN_RATIO = .02;
 const SCORE_VERTICAL_STACK_RATIO = .08;
+const SCORE_MAX_EXPANSION_RATIO = .25;
+const SCORE_MAX_HEARTBREAK_OFFSET_RATIO = 1;
 
 /**
  * draw level number etc.
@@ -500,14 +502,17 @@ export function drawUi(context: CanvasRenderingContext2D) {
     context.fillText("RESET", uiTopLeft[0] + uiButtonMarginSize + uiButtonSize / 2, uiTopLeft[1] + uiAreaSize[1] - uiButtonMarginSize * 1 - uiButtonSize * .5);
 
     // draw scores
+    const winAnim = animationList[AnimationType.Win].length > 0 ? (animationList[AnimationType.Win][0] as AnimationWin) : null;
     context.fillStyle = PALETTE[3];
     for (let i = 0; i < mainLevel.hearts.length; i++) {
         const heart = mainLevel.hearts[i];
-        const heartTopLeft = add(scoreTopLeft, [i % 2 === 0 ? 0 : (scoreWidth * (1 - SCORE_HEART_WIDTH_RATIO)), scoreHeartSize * (1 - SCORE_VERTICAL_STACK_RATIO) * i]);
+        const scoreHeartSize = scoreHeartBaseSize * (winAnim === null ? 1 : (1 + winAnim.getScoreBeatSizeRatio(i) * SCORE_MAX_EXPANSION_RATIO));
+        const heartBaseTopLeft = add(scoreTopLeft, [i % 2 === 0 ? 0 : (scoreWidth * (1 - SCORE_HEART_WIDTH_RATIO)), scoreHeartBaseSize * (1 - SCORE_VERTICAL_STACK_RATIO) * i]);
+        const heartTopLeft = add(heartBaseTopLeft, scale([1, 1], -(scoreHeartSize - scoreHeartBaseSize) / 2));
         switch (heart.state) {
             case HeartState.Hidden:
                 context.beginPath();
-                context.arc(heartTopLeft[0] + scoreHeartSize / 2, heartTopLeft[1] + scoreHeartSize / 2, scoreHeartSize * .12, 0, Math.PI * 2);
+                context.arc(heartBaseTopLeft[0] + scoreHeartBaseSize / 2, heartBaseTopLeft[1] + scoreHeartBaseSize / 2, scoreHeartBaseSize * .12, 0, Math.PI * 2);
                 context.fill();
                 break;
 
@@ -516,8 +521,9 @@ export function drawUi(context: CanvasRenderingContext2D) {
                 break;
 
             case HeartState.Broken:
-                context.drawImage(brokenHeartLTexture, heartTopLeft[0] - scoreHeartSize * BROKEN_HEART_OFFSET_RATIO, heartTopLeft[1], scoreHeartSize, scoreHeartSize);
-                context.drawImage(brokenHeartRTexture, heartTopLeft[0] + scoreHeartSize * BROKEN_HEART_OFFSET_RATIO, heartTopLeft[1], scoreHeartSize, scoreHeartSize);
+                const heartbreakOffset = scoreHeartBaseSize * BROKEN_HEART_OFFSET_RATIO * (winAnim === null ? 1 : (1 - winAnim.getScoreBeatSizeRatio(i) * SCORE_MAX_HEARTBREAK_OFFSET_RATIO));
+                context.drawImage(brokenHeartLTexture, heartBaseTopLeft[0] - heartbreakOffset, heartBaseTopLeft[1], scoreHeartBaseSize, scoreHeartBaseSize);
+                context.drawImage(brokenHeartRTexture, heartBaseTopLeft[0] + heartbreakOffset, heartBaseTopLeft[1], scoreHeartBaseSize, scoreHeartBaseSize);
                 break;
         }
     }
