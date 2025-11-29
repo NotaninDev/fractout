@@ -57,8 +57,7 @@ const zoomOutSelectorTexture = await imageFromName("zoom out selector U", "svg")
 const heartTexture = await imageFromName("heart", "svg");
 const brokenHeartLTexture = await imageFromName("broken heart L", "svg");
 const brokenHeartRTexture = await imageFromName("broken heart R", "svg");
-const notanTexture = await imageFromName('notan bird');
-const playerTexture = await imageFromName('example');
+const notanBirdTexture = await imageFromName('notan bird');
 /** smallest possible size of the smallest brick in pixel */
 const MIN_BRICK_SIZE = 14;
 /** smallest possible padding size of the brick view frame in pixel */
@@ -452,8 +451,59 @@ const BANNER_FONT_SIZE_RATIO = .6;
 // canvasSize is width, height
 export function drawWinMessage(context: CanvasRenderingContext2D, canvasSize: Readonly<number[]>, levelCenter: number[]) {
     if (!levelDrawer.win) return;
+    const winAnim = animationList[AnimationType.Win].length > 0 ? (animationList[AnimationType.Win][0] as AnimationWin) : null;
+    if (winAnim === null) {
+        console.warn("win animatino is not set");
+        return;
+    }
+    let wholeHeartCount = 0;
+    for (const heart of mainLevel.hearts) {
+        wholeHeartCount += (heart.state === HeartState.Found ? 1 : 0);
+    }
 
-    // todo: implement this
+    let fontSize = textRatio * 32;
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.font = `${fontSize}px Recurso`;
+    const textOffset = [0, canvasSize[1] * .4 * (1 - winAnim.getMessageTimeRatio())];
+    if (wholeHeartCount === 0) {
+        // 100% brokenheart
+        drawTextBox(context, "You broke all the hearts!", add(levelCenter, [0, fontSize * -5.6], scale(textOffset, -1)), scale([12.4, 1], fontSize), [3, 3], 0);
+        drawTextBox(context, "Impressive!", add(levelCenter, [0, fontSize * -4.6], scale(textOffset, -1)), scale([6.2, 1], fontSize), [3, 3], textRatio * 3);
+
+        fontSize = textRatio * 18;
+        context.font = `${fontSize}px Recurso`;
+        drawTextBox(context, "please don't do that to me i'm scared", add(levelCenter, [0, fontSize * -4.2], scale(textOffset, -1)), scale([18.7, 1], fontSize), [3, 3], textRatio * 3);
+    }
+    else if (wholeHeartCount === mainLevel.hearts.length) {
+        // 100% intact heart
+        drawTextBox(context, "You found all the hearts!", add(levelCenter, [0, fontSize * -5.6], scale(textOffset, -1)), scale([12.4, 1], fontSize), [3, 3], 0);
+        drawTextBox(context, "Amazing!", add(levelCenter, [0, fontSize * -4.6], scale(textOffset, -1)), scale([4.6, 1], fontSize), [3, 3], textRatio * 6);
+    }
+    else {
+        // any%
+        drawTextBox(context, "You found some intact hearts", add(levelCenter, [0, fontSize * -5.6], scale(textOffset, -1)), scale([14.9, 1], fontSize), [3, 3], 0);
+        drawTextBox(context, "and some broken hearts", add(levelCenter, [0, fontSize * -4.6], scale(textOffset, -1)), scale([12.1, 1], fontSize), scale([3, 3], textRatio), 0);
+        drawTextBox(context, "The End...?", add(levelCenter, [0, fontSize * -2.8], scale(textOffset, -1)), scale([5.6, 1], fontSize), [3, 3], 0);
+    }
+    fontSize = textRatio * 24;
+    context.font = `${fontSize}px Recurso`;
+    drawTextBox(context, "Made by Notan", add(levelCenter, [0, fontSize * 8], textOffset), scale([7.4, 1], fontSize), [3, 3], textRatio * 3);
+    const notanBirdCenter = add(levelCenter, scale([5.4, 8], fontSize), textOffset);
+    const creditSquareSize = fontSize * 1.64;
+    const notanBirdSize = fontSize * 1.6;
+    context.fillStyle = PALETTE[3];
+    context.beginPath();
+    context.roundRect(notanBirdCenter[0] - creditSquareSize / 2, notanBirdCenter[1] - creditSquareSize / 2, creditSquareSize, creditSquareSize, textRatio * 5);
+    context.fill();
+    context.drawImage(notanBirdTexture, notanBirdCenter[0] - notanBirdSize / 2, notanBirdCenter[1] - notanBirdSize / 2, notanBirdSize, notanBirdSize);
+}
+
+function drawTextBox(context: CanvasRenderingContext2D, text: string, center: Readonly<number[]>, textSize: Readonly<number[]>, padding: Readonly<number[]>, extraPaddingDown: number) {
+    context.fillStyle = PALETTE[3];
+    context.fillRect(center[0] - textSize[0] / 2 - padding[0], center[1] - textSize[1] / 2 - padding[1], textSize[0] + padding[0] * 2, textSize[1] + padding[1] + extraPaddingDown);
+    context.fillStyle = PALETTE[0];
+    context.fillText(text, center[0], center[1]);
 }
 
 const UI_BUTTON_MARGIN_RATIO = .04;

@@ -275,7 +275,7 @@ export class AnimationWin extends Animatable {
      * get how far in time the win message animation has played
      * @returns time scale between [0, 1]
      */
-    getTimeRatio() {
+    getMessageTimeRatio() {
         if (this.skip) return 1;
         const t = clamp(0, 1, (timestepGlobal - (this.startTime + this.winMessageDelayMilliseconds)) / WIN_MESSAGE_MILLISECONDS);
         return 1 - (1 - t) * (1 - t);
