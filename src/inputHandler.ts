@@ -3,7 +3,7 @@ import { Direction, editorMode, coordsWindowToCoordsLevel, setEditorMode, coords
 export class InputHandler {
     blocked: boolean;
     currentKey: InputHandler.KeyName;
-    windowCoords: Readonly<number[]> | null;
+    windowCoords: Readonly<number[]>;
     /**
      * Mouse coordinates in the level where the mouse was clicked last time.
      * Projected to [0, 1] range.
@@ -17,7 +17,7 @@ export class InputHandler {
     private keyDown: Record<InputHandler.KeyName, boolean>;
     constructor() {
         this.blocked = false;
-        this.windowCoords = null;
+        this.windowCoords = [0, 0];
         this.levelCoords = null;
         this.mouseButton = null;
         this.currentKey = InputHandler.KeyName.None;

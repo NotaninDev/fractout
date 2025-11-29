@@ -82,10 +82,14 @@ let brickViewTopLeft: Readonly<number[]>;
 /** the top left coordinates of the play area in pixels; [x, y] */
 let playAreaTopLeft: Readonly<number[]>;
 let playAreaCenter: Readonly<number[]>;
+let tempCanvas: HTMLCanvasElement;
 export function initializeDrawer(levelAttr: Level) {
     levelDrawer = levelAttr;
     zoomCoords = new Coordinates([]);
     winTextHidden = false;
+    if (tempCanvas === undefined) {
+        tempCanvas = document.createElement("canvas");
+    }
 }
 
 /**
@@ -184,27 +188,33 @@ export enum UiButtonType {
     WinText,
 }
 export function getUiButtonClick() {
-    if (inputHandler.mouseDownEventUnused && inputHandler.mouseButton === 0 && inputHandler.windowCoords !== null) {
-        if (mainLevel.win &&
-            inButtonRect(inputHandler.windowCoords, [uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * 4], uiButtonSize)) {
-            inputHandler.mouseDownEventUnused = false;
-            return UiButtonType.WinText;
-        }
-        if (mainLevel.canUndo() &&
-            inButtonRect(inputHandler.windowCoords, [uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * 3], uiButtonSize)) {
-            inputHandler.mouseDownEventUnused = false;
-            return UiButtonType.Undo;
-        }
-        if (mainLevel.canRedo() &&
-            inButtonRect(inputHandler.windowCoords, [uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * 2], uiButtonSize)) {
-            inputHandler.mouseDownEventUnused = false;
-            return UiButtonType.Redo;
-        }
-        if (mainLevel.canRestart() &&
-            inButtonRect(inputHandler.windowCoords, [uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * 1], uiButtonSize)) {
-            inputHandler.mouseDownEventUnused = false;
-            return UiButtonType.Reset;
-        }
+    if (inputHandler.mouseDownEventUnused && inputHandler.mouseButton === 0) {
+        return getUiButtonHover();
+    }
+    return UiButtonType.None;
+}
+
+function getUiButtonHover() {
+    if (timestepGlobal === 0) return UiButtonType.None;
+    if (mainLevel.win &&
+        inButtonRect(inputHandler.windowCoords, [uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * 4], uiButtonSize)) {
+        inputHandler.mouseDownEventUnused = false;
+        return UiButtonType.WinText;
+    }
+    if (mainLevel.canUndo() &&
+        inButtonRect(inputHandler.windowCoords, [uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * 3], uiButtonSize)) {
+        inputHandler.mouseDownEventUnused = false;
+        return UiButtonType.Undo;
+    }
+    if (mainLevel.canRedo() &&
+        inButtonRect(inputHandler.windowCoords, [uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * 2], uiButtonSize)) {
+        inputHandler.mouseDownEventUnused = false;
+        return UiButtonType.Redo;
+    }
+    if (mainLevel.canRestart() &&
+        inButtonRect(inputHandler.windowCoords, [uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * 1], uiButtonSize)) {
+        inputHandler.mouseDownEventUnused = false;
+        return UiButtonType.Reset;
     }
     return UiButtonType.None;
 }
@@ -214,42 +224,40 @@ const zoomButtonClickable = [false, false, false, false];
 export let usedZoom = false;
 
 export function evaluateZoomButtonClick() {
-    if (inputHandler.mouseDownEventUnused && inputHandler.mouseButton === 0) {
-        if (inputHandler.windowCoords !== null) {
-            const activeZoomButton = getActiveZoomButton(inputHandler.windowCoords);
-            if (activeZoomButton !== null) {
-                const zoomType = activeZoomButton["type"];
-                let childIndex: number | null;
-                if (zoomType === ZoomType.In) {
-                    switch (activeZoomButton["rotation"]) {
-                        case 0:
-                            childIndex = 0;
-                            break;
-                        case 1:
-                            childIndex = 1;
-                            break;
-                        case 2:
-                            childIndex = 3;
-                            break;
-                        case 3:
-                            childIndex = 2;
-                            break;
+    if (inputHandler.mouseDownEventUnused && inputHandler.mouseButton === 0 && timestepGlobal !== 0) {
+        const activeZoomButton = getActiveZoomButton(inputHandler.windowCoords);
+        if (activeZoomButton !== null) {
+            const zoomType = activeZoomButton["type"];
+            let childIndex: number | null;
+            if (zoomType === ZoomType.In) {
+                switch (activeZoomButton["rotation"]) {
+                    case 0:
+                        childIndex = 0;
+                        break;
+                    case 1:
+                        childIndex = 1;
+                        break;
+                    case 2:
+                        childIndex = 3;
+                        break;
+                    case 3:
+                        childIndex = 2;
+                        break;
 
-                        default:
-                            console.warn(`invalid index:`, activeZoomButton["rotation"]);
-                            childIndex = -1;
-                            break;
-                    }
+                    default:
+                        console.warn(`invalid index:`, activeZoomButton["rotation"]);
+                        childIndex = -1;
+                        break;
                 }
-                else childIndex = null;
-
-                if (zoomType === ZoomType.Out && zoomCoords.path.length == 0) return;
-                if (zoomType === ZoomType.In && !zoomButtonClickable[childIndex!]) return;
-                inputHandler.mouseDownEventUnused = false;
-                registerZoomAnim(zoomType, childIndex);
-                closeDepthWarning();
-                usedZoom = true;
             }
+            else childIndex = null;
+
+            if (zoomType === ZoomType.Out && zoomCoords.path.length == 0) return;
+            if (zoomType === ZoomType.In && !zoomButtonClickable[childIndex!]) return;
+            inputHandler.mouseDownEventUnused = false;
+            registerZoomAnim(zoomType, childIndex);
+            closeDepthWarning();
+            usedZoom = true;
         }
     }
 }
@@ -262,7 +270,7 @@ export enum ZoomType {
 /**
  * get the zoom button the given coordinates is on
  * @param coordsWindow [x, y]; absolute coordinates in the window
- * @returns object representing the button the given coordinates is on, or `null` if no such button exists
+ * @returns object representing the button the given coordinates is on, or `null` if no such button exists. `rotation` is an integer in range [0, 3].
  */
 function getActiveZoomButton(coordsWindow: Readonly<number[]>) {
     // can't get the window coordinates correctly on the first frame
@@ -311,13 +319,6 @@ export function getMessageCoordinates() {
 }
 
 
-
-function drawTutorialText(context: CanvasRenderingContext2D) {
-    switch (levelNumber) {
-        default:
-            break;
-    }
-}
 
 const BRICK_VIEW_LINE_WIDTH = 4;
 
@@ -371,6 +372,10 @@ export function drawLevel(context: CanvasRenderingContext2D) {
         y1 = lerp(y1Parent, y1, zoomAnim.getZoomRatio());
     }
 
+    const hoverCoordsLevel = timestepGlobal === 0 ? null : coordsWindowToCoordsLevel(inputHandler.windowCoords);
+    const hoverCoordsBrickChild = hoverCoordsLevel === null ? null : mainLevel.toChildBrickCoords(hoverCoordsLevel);
+    const hoverBrick = hoverCoordsBrickChild === null ? null : mainLevel.getBrickByCoords(new Coordinates(hoverCoordsBrickChild.path.slice(0, -1)));
+
     let bricksCurrent: Brick[];
     let bricksNext: Brick[] = [mainLevel.rootBrick];
     for (let depth = 0; bricksNext.length > 0 && depth < zoomCoords.path.length + BRICK_MAX_DEPTH + 4; depth++) {
@@ -379,7 +384,7 @@ export function drawLevel(context: CanvasRenderingContext2D) {
         for (let i = 0; i < bricksCurrent.length; i++) {
             const brick = bricksCurrent[i];
             if (brick.isIntact()) {
-                drawBrick(context, x0, y0, x1, y1, brick);
+                drawBrick(context, x0, y0, x1, y1, brick, brick === hoverBrick ? hoverCoordsBrickChild!.path[hoverCoordsBrickChild!.path.length - 1] : null);
             }
             else {
                 if (mainLevel.heartParents.has(brick)) {
@@ -410,6 +415,9 @@ export function drawLevel(context: CanvasRenderingContext2D) {
         context.fillText("Zoom in to go further", warningAnim.coords[0] + 15 * textRatio, warningAnim.coords[1] + 22 * textRatio);
     }
 
+
+    // zoom button area
+
     context.save();
     context.beginPath();
     context.rect(playAreaTopLeft[0] - PLAY_AREA_MARGIN_SIZE, playAreaTopLeft[1] - PLAY_AREA_MARGIN_SIZE, playAreaSize + PLAY_AREA_MARGIN_SIZE * 2, playAreaSize + PLAY_AREA_MARGIN_SIZE * 2);
@@ -422,6 +430,7 @@ export function drawLevel(context: CanvasRenderingContext2D) {
     context.rect(brickViewTopLeft[0], brickViewTopLeft[1], brickViewSize, brickViewSize);
     context.stroke();
 
+    const activeZoomButton = getActiveZoomButton(inputHandler.windowCoords);
     const drawZoomSelector = animationList[AnimationType.Zoom].length === 0;
     for (let i = 0; i < 4; i++) {
         const childIndex = i >= 2 ? (5 - i) : i;
@@ -432,21 +441,36 @@ export function drawLevel(context: CanvasRenderingContext2D) {
 
         context.drawImage(zoomInTexture, playAreaTopLeft[0], playAreaTopLeft[1], zoomButtonAreaSize, zoomButtonAreaSize);
         if (drawZoomSelector && zoomButtonClickable[childIndex]) {
-            context.drawImage(zoomInSelectorTexture, playAreaTopLeft[0], playAreaTopLeft[1], zoomButtonAreaSize, zoomButtonAreaSize);
+            if (activeZoomButton !== null && activeZoomButton["type"] === ZoomType.In && activeZoomButton["rotation"] === i) {
+                drawWaveSelector(context, playAreaTopLeft, zoomButtonAreaSize, Math.PI / 4,
+                    (tempContext: CanvasRenderingContext2D) => {
+                        tempContext.drawImage(zoomInSelectorTexture, 0, 0, zoomButtonAreaSize, zoomButtonAreaSize);
+                    }
+                )
+            }
+            else {
+                context.drawImage(zoomInSelectorTexture, playAreaTopLeft[0], playAreaTopLeft[1], zoomButtonAreaSize, zoomButtonAreaSize);
+            }
         }
 
         context.drawImage(zoomOutTexture, playAreaCenter[0] - zoomButtonAreaSize / 2, playAreaTopLeft[1], zoomButtonAreaSize, zoomButtonAreaSize);
         if (drawZoomSelector && zoomCoords.path.length > 0) {
-            context.drawImage(zoomOutSelectorTexture, playAreaCenter[0] - zoomButtonAreaSize / 2, playAreaTopLeft[1], zoomButtonAreaSize, zoomButtonAreaSize);
+            if (activeZoomButton !== null && activeZoomButton["type"] === ZoomType.Out) {
+                drawWaveSelector(context, [playAreaCenter[0] - zoomButtonAreaSize / 2, playAreaTopLeft[1]], zoomButtonAreaSize, -Math.PI / 2,
+                    (tempContext: CanvasRenderingContext2D) => {
+                        tempContext.drawImage(zoomOutSelectorTexture, 0, 0, zoomButtonAreaSize, zoomButtonAreaSize);
+                    }
+                )
+            }
+            else {
+                context.drawImage(zoomOutSelectorTexture, playAreaCenter[0] - zoomButtonAreaSize / 2, playAreaTopLeft[1], zoomButtonAreaSize, zoomButtonAreaSize);
+            }
         }
 
         context.restore();
     }
 
     context.restore();
-
-    // draw tutorial text
-    drawTutorialText(context);
 }
 
 const BANNER_HEIGHT_RATIO = 1;
@@ -537,6 +561,7 @@ export function toggleWinTextHidden() {
 export function drawUi(context: CanvasRenderingContext2D) {
     // draw buttons
     const buttonActive = [mainLevel.win, mainLevel.canUndo(), mainLevel.canRedo(), mainLevel.canRestart()];
+    const mouseHoverButton = getUiButtonHover();
     context.textAlign = "center";
     context.textBaseline = "middle";
     context.font = `${uiButtonSize * .22}px Recurso`;
@@ -549,13 +574,18 @@ export function drawUi(context: CanvasRenderingContext2D) {
         context.fill();
         context.beginPath();
         if (buttonActive[i]) {
-            context.roundRect(
-                uiTopLeft[0] + uiButtonMarginSize + uiButtonSize * UI_BUTTON_SELECTOR_OFFSET_RATIO,
-                uiTopLeft[1] + uiAreaSize[1] - uiButtonMarginSize * (4 - i) - uiButtonSize * (4 - i - UI_BUTTON_SELECTOR_OFFSET_RATIO),
-                uiButtonSize * (1 - UI_BUTTON_SELECTOR_OFFSET_RATIO * 2),
-                uiButtonSize * (1 - UI_BUTTON_SELECTOR_OFFSET_RATIO * 2),
-                uiButtonSize * .05);
-            context.stroke();
+            if ((mouseHoverButton === UiButtonType.Undo && i === 1) ||
+                (mouseHoverButton === UiButtonType.Redo && i === 2) ||
+                (mouseHoverButton === UiButtonType.Reset && i === 3)) {
+                drawWaveSelector(context, [uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * (4 - i)], uiButtonSize, i === 2 ? 0 : Math.PI, (tempContext: CanvasRenderingContext2D) => {
+                    tempContext.strokeStyle = PALETTE[0];
+                    tempContext.lineWidth = uiButtonSize * .05;
+                    drawButtonSelector(tempContext, [0, 0]);
+                });
+            }
+            else {
+                drawButtonSelector(context, add(uiTopLeft, [uiButtonMarginSize, uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * (4 - i)]));
+            }
         }
     }
     context.fillStyle = PALETTE[0];
@@ -569,14 +599,18 @@ export function drawUi(context: CanvasRenderingContext2D) {
         context.beginPath();
         context.roundRect(uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * 4, uiButtonSize, uiButtonSize, uiButtonMarginSize);
         context.fill();
-        context.beginPath();
-        context.roundRect(
-            uiTopLeft[0] + uiButtonMarginSize + uiButtonSize * UI_BUTTON_SELECTOR_OFFSET_RATIO,
-            uiTopLeft[1] + uiAreaSize[1] - uiButtonMarginSize * 4 - uiButtonSize * (4 - UI_BUTTON_SELECTOR_OFFSET_RATIO),
-            uiButtonSize * (1 - UI_BUTTON_SELECTOR_OFFSET_RATIO * 2),
-            uiButtonSize * (1 - UI_BUTTON_SELECTOR_OFFSET_RATIO * 2),
-            uiButtonSize * .05);
-        context.stroke();
+
+        if (mouseHoverButton === UiButtonType.WinText) {
+            drawWaveSelector(context, [uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * 4], uiButtonSize, winTextHidden ? (-Math.PI / 2) : (Math.PI / 2), (tempContext: CanvasRenderingContext2D) => {
+                tempContext.strokeStyle = PALETTE[3];
+                tempContext.lineWidth = uiButtonSize * .05;
+                drawButtonSelector(tempContext, [0, 0]);
+            });
+        }
+        else {
+            drawButtonSelector(context, add(uiTopLeft, [uiButtonMarginSize, uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * 4]));
+        }
+
         context.fillStyle = PALETTE[3];
         context.fillText(winTextHidden ? "SHOW" : "HIDE", uiTopLeft[0] + uiButtonMarginSize + uiButtonSize / 2, uiTopLeft[1] + uiAreaSize[1] - uiButtonMarginSize * 4 - uiButtonSize * 3.62);
         context.fillText("TEXT", uiTopLeft[0] + uiButtonMarginSize + uiButtonSize / 2, uiTopLeft[1] + uiAreaSize[1] - uiButtonMarginSize * 4 - uiButtonSize * 3.38);
@@ -610,7 +644,18 @@ export function drawUi(context: CanvasRenderingContext2D) {
     }
 }
 
-function drawBrick(context: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, brick: Brick) {
+function drawButtonSelector(context: CanvasRenderingContext2D, buttonTopLeft: Readonly<number[]>) {
+    context.beginPath();
+    context.roundRect(
+        buttonTopLeft[0] + uiButtonSize * UI_BUTTON_SELECTOR_OFFSET_RATIO,
+        buttonTopLeft[1] + uiButtonSize * UI_BUTTON_SELECTOR_OFFSET_RATIO,
+        uiButtonSize * (1 - UI_BUTTON_SELECTOR_OFFSET_RATIO * 2),
+        uiButtonSize * (1 - UI_BUTTON_SELECTOR_OFFSET_RATIO * 2),
+        uiButtonSize * .05);
+    context.stroke();
+}
+
+function drawBrick(context: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, brick: Brick, mouseHoverIndex: number | null) {
     // set outline
     for (let i = 0; i < brick.coords.path.length; i++) {
         switch (brick.coords.path[i]) {
@@ -710,11 +755,44 @@ function drawBrick(context: CanvasRenderingContext2D, x0: number, y0: number, x1
                         break;
                 }
                 context.translate(-xCenter, -yCenter);
-                context.drawImage(selectorTexture, x0, y0, x1 - x0, y1 - y0)
+                if (i === mouseHoverIndex) {
+                    drawWaveSelector(context, [x0, y0], yCenter - y0, Math.PI / 4, (tempContext: CanvasRenderingContext2D) => { tempContext.drawImage(selectorTexture, 0, 0, x1 - x0, y1 - y0); });
+                }
+                else {
+                    context.drawImage(selectorTexture, x0, y0, x1 - x0, y1 - y0)
+                }
                 context.restore();
             }
         }
     }
+}
+
+
+const WAVE_AREA_SIZE_RATIO = 1.5;
+const WAVE_LINE_COUNT = 8;
+const WAVE_MILLISECONDS = 1080;
+
+function drawWaveSelector(context: CanvasRenderingContext2D, topLeft: Readonly<number[]>, size: number, angle: number, drawerCallback: (context: CanvasRenderingContext2D) => void) {
+    tempCanvas.width = size;
+    tempCanvas.height = size;
+    const tempContext = tempCanvas.getContext("2d")!;
+    drawerCallback(tempContext);
+
+    const waveAreaSize = size * WAVE_AREA_SIZE_RATIO;
+    tempContext.translate(size / 2, size / 2);
+    tempContext.rotate(angle);
+    tempContext.translate(-waveAreaSize / 2, -waveAreaSize / 2);
+    tempContext.globalCompositeOperation = "destination-out";
+    tempContext.strokeStyle = "#ffffff";
+    tempContext.lineWidth = waveAreaSize / WAVE_LINE_COUNT * .3;
+    for (let x = 1 / WAVE_LINE_COUNT * (-1 + (timestepGlobal / WAVE_MILLISECONDS) % 1); x <= 1 + 1 / WAVE_LINE_COUNT; x += 1 / WAVE_LINE_COUNT) {
+        tempContext.beginPath();
+        tempContext.moveTo(x * waveAreaSize, 0);
+        tempContext.lineTo(x * waveAreaSize, waveAreaSize);
+        tempContext.stroke();
+    }
+
+    context.drawImage(tempCanvas, topLeft[0], topLeft[1]);
 }
 
 const BROKEN_HEART_OFFSET_RATIO = .07;
