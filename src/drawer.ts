@@ -1,4 +1,4 @@
-import { Level, add, scale, levelNumber, mainLevel, timestepGlobal, BRICK_MAX_DEPTH, Brick, Coordinates, inputHandler, registerZoomAnim, animationList, AnimationType, AnimationZoom, AnimationDepthWarning, closeDepthWarning, Heart, HeartState, editorMode, AnimationHeartbreak, AnimationWin } from "./internal";
+import { Level, add, scale, levelNumber, mainLevel, timestepGlobal, BRICK_MAX_DEPTH, Brick, Coordinates, inputHandler, registerZoomAnim, animationList, AnimationType, AnimationZoom, AnimationDepthWarning, closeDepthWarning, Heart, HeartState, editorMode, AnimationHeartbreak, AnimationWin, WinType } from "./internal";
 
 export function lerp(a: number, b: number, t: number) {
     return a * (1 - t) + b * t;
@@ -487,35 +487,32 @@ export function drawWinMessage(context: CanvasRenderingContext2D, canvasSize: Re
         console.warn("win animatino is not set");
         return;
     }
-    let wholeHeartCount = 0;
-    for (const heart of mainLevel.hearts) {
-        wholeHeartCount += (heart.state === HeartState.Found ? 1 : 0);
-    }
 
     let fontSize = textRatio * 32;
     context.textAlign = "center";
     context.textBaseline = "middle";
     context.font = `${fontSize}px Recurso`;
     const textOffset = [0, canvasSize[1] * .4 * (1 - winAnim.getMessageTimeRatio())];
-    if (wholeHeartCount === 0) {
-        // 100% brokenheart
-        drawTextBox(context, "You broke all the hearts!", add(levelCenter, [0, fontSize * -5.6], scale(textOffset, -1)), scale([12.4, 1], fontSize), [3, 3], 0);
-        drawTextBox(context, "Impressive!", add(levelCenter, [0, fontSize * -4.6], scale(textOffset, -1)), scale([6.2, 1], fontSize), [3, 3], textRatio * 3);
+    switch (mainLevel.winType) {
+        case WinType.AllBroken:
+            drawTextBox(context, "You broke all the hearts!", add(levelCenter, [0, fontSize * -5.6], scale(textOffset, -1)), scale([12.4, 1], fontSize), [3, 3], 0);
+            drawTextBox(context, "Impressive!", add(levelCenter, [0, fontSize * -4.6], scale(textOffset, -1)), scale([6.2, 1], fontSize), [3, 3], textRatio * 3);
 
-        fontSize = textRatio * 18;
-        context.font = `${fontSize}px Recurso`;
-        drawTextBox(context, "please don't do that to me i'm scared", add(levelCenter, [0, fontSize * -4.2], scale(textOffset, -1)), scale([18.7, 1], fontSize), [3, 3], textRatio * 3);
-    }
-    else if (wholeHeartCount === mainLevel.hearts.length) {
-        // 100% intact heart
-        drawTextBox(context, "You found all the hearts!", add(levelCenter, [0, fontSize * -5.6], scale(textOffset, -1)), scale([12.4, 1], fontSize), [3, 3], 0);
-        drawTextBox(context, "Amazing!", add(levelCenter, [0, fontSize * -4.6], scale(textOffset, -1)), scale([4.6, 1], fontSize), [3, 3], textRatio * 6);
-    }
-    else {
-        // any%
-        drawTextBox(context, "You found some intact hearts", add(levelCenter, [0, fontSize * -5.6], scale(textOffset, -1)), scale([14.9, 1], fontSize), [3, 3], 0);
-        drawTextBox(context, "and some broken hearts", add(levelCenter, [0, fontSize * -4.6], scale(textOffset, -1)), scale([12.1, 1], fontSize), scale([3, 3], textRatio), 0);
-        drawTextBox(context, "The End...?", add(levelCenter, [0, fontSize * -2.8], scale(textOffset, -1)), scale([5.6, 1], fontSize), [3, 3], 0);
+            fontSize = textRatio * 18;
+            context.font = `${fontSize}px Recurso`;
+            drawTextBox(context, "please don't do that to me i'm scared", add(levelCenter, [0, fontSize * -4.2], scale(textOffset, -1)), scale([18.7, 1], fontSize), [3, 3], textRatio * 3);
+            break;
+
+        case WinType.AllFound:
+            drawTextBox(context, "You found all the hearts!", add(levelCenter, [0, fontSize * -5.6], scale(textOffset, -1)), scale([12.4, 1], fontSize), [3, 3], 0);
+            drawTextBox(context, "Amazing!", add(levelCenter, [0, fontSize * -4.6], scale(textOffset, -1)), scale([4.6, 1], fontSize), [3, 3], textRatio * 6);
+            break;
+
+        case WinType.AnyPercent:
+            drawTextBox(context, "You found some intact hearts", add(levelCenter, [0, fontSize * -5.6], scale(textOffset, -1)), scale([14.9, 1], fontSize), [3, 3], 0);
+            drawTextBox(context, "and some broken hearts", add(levelCenter, [0, fontSize * -4.6], scale(textOffset, -1)), scale([12.1, 1], fontSize), scale([3, 3], textRatio), 0);
+            drawTextBox(context, "The End...?", add(levelCenter, [0, fontSize * -2.8], scale(textOffset, -1)), scale([5.6, 1], fontSize), [3, 3], 0);
+            break;
     }
     fontSize = textRatio * 24;
     context.font = `${fontSize}px Recurso`;
@@ -547,9 +544,9 @@ const SCORE_VERTICAL_STACK_RATIO = .08;
 const SCORE_MAX_EXPANSION_RATIO = .25;
 const SCORE_MAX_HEARTBREAK_OFFSET_RATIO = 1;
 
-let winTextHidden = false;
-export function toggleWinTextHidden() {
-    winTextHidden = !winTextHidden;
+export let winTextHidden = false;
+export function setWinTextHidden(hidden: boolean) {
+    winTextHidden = hidden;
 }
 
 /**

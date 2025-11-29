@@ -1,4 +1,4 @@
-import { AnimationHeartbreak, animationList, AnimationType, AnimationWin, closeDepthWarning, getUiButtonClick, initialState, InputHandler, inputHandler, lerp, LevelTemplate, registerDepthWarningAnim, registerHeartbreakAnim, registerWinAnim, toggleWinTextHidden, setZoomCoords, UiButtonType, updateAnimationList, updateZoomState, zoomCoords } from "./internal";
+import { AnimationHeartbreak, animationList, AnimationType, AnimationWin, closeDepthWarning, getUiButtonClick, initialState, InputHandler, inputHandler, lerp, LevelTemplate, registerDepthWarningAnim, registerHeartbreakAnim, registerWinAnim, setWinTextHidden, setZoomCoords, UiButtonType, updateAnimationList, updateZoomState, winTextHidden, zoomCoords } from "./internal";
 
 export enum Direction {
     Up = 0,
@@ -211,6 +211,12 @@ export class Heart {
     }
 }
 
+export enum WinType {
+    AnyPercent = 500,
+    AllFound,
+    AllBroken,
+}
+
 export class Level {
     rootBrick: Brick;
     readonly hearts!: Readonly<Heart[]>;
@@ -226,6 +232,8 @@ export class Level {
     /** tracks if any moves were made since the initial state */
     moved: boolean;
     win: boolean;
+    winType: WinType | null;
+    achievedWins: Set<WinType>;
     undoStack: StateStack;
     redoStack: StateStack;
 
@@ -241,6 +249,8 @@ export class Level {
         setZoomCoords(this.initialZoomCoords);
 
         this.win = false;
+        this.winType = null;
+        this.achievedWins = new Set();
         this.moved = false;
         this.undoStack = new StateStack(this);
         this.redoStack = new StateStack(this);
@@ -525,7 +535,7 @@ export class Level {
                         }
                         break;
                     case UiButtonType.WinText:
-                        toggleWinTextHidden();
+                        setWinTextHidden(!winTextHidden);
                         break;
                 }
             }
@@ -582,8 +592,20 @@ export class Level {
         const oldWin = this.win;
         this.updateHeartState(skipAnimation);
         this.win = this.hearts.length > 0 && this.hearts.every(heart => heart.isSatisfied());
-        if (!oldWin && this.win) registerWinAnim(skipAnimation);
-        else if (oldWin && !this.win) AnimationWin.remove();
+        if (!oldWin && this.win) {
+            registerWinAnim(skipAnimation);
+            if (this.hearts.every(heart => heart.state === HeartState.Found)) this.winType = WinType.AllFound;
+            else if (this.hearts.every(heart => heart.state === HeartState.Broken)) this.winType = WinType.AllBroken;
+            else this.winType = WinType.AnyPercent;
+            if (!this.achievedWins.has(this.winType)) {
+                setWinTextHidden(false);
+                this.achievedWins.add(this.winType);
+            }
+        }
+        else if (oldWin && !this.win) {
+            AnimationWin.remove();
+            this.winType = null;
+        }
     }
 
     canUndo() {
