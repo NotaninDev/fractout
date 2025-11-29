@@ -1,4 +1,4 @@
-import { AnimationHeartbreak, animationList, AnimationType, AnimationWin, closeDepthWarning, getUiButtonClick, initialState, InputHandler, inputHandler, lerp, LevelTemplate, registerDepthWarningAnim, registerHeartbreakAnim, registerWinAnim, setZoomCoords, UiButtonType, updateAnimationList, updateZoomState, zoomCoords } from "./internal";
+import { AnimationHeartbreak, animationList, AnimationType, AnimationWin, closeDepthWarning, getUiButtonClick, initialState, InputHandler, inputHandler, lerp, LevelTemplate, registerDepthWarningAnim, registerHeartbreakAnim, registerWinAnim, toggleWinTextHidden, setZoomCoords, UiButtonType, updateAnimationList, updateZoomState, zoomCoords } from "./internal";
 
 export enum Direction {
     Up = 0,
@@ -523,6 +523,9 @@ export class Level {
                             updateZoomState();
                             closeDepthWarning();
                         }
+                        break;
+                    case UiButtonType.WinText:
+                        toggleWinTextHidden();
                         break;
                 }
             }

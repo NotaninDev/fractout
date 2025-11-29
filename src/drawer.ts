@@ -85,6 +85,7 @@ let playAreaCenter: Readonly<number[]>;
 export function initializeDrawer(levelAttr: Level) {
     levelDrawer = levelAttr;
     zoomCoords = new Coordinates([]);
+    winTextHidden = false;
 }
 
 /**
@@ -124,8 +125,8 @@ export function setUiSize(canvasSize: Readonly<number[]>, center: number[]) {
     // ui buttons
     uiTopLeft = add(center, [canvasSize[0] * (.5 - UI_BUTTON_AREA_WIDTH_RATIO), canvasSize[1] * -.5]).map(Math.round);
     uiAreaSize = canvasSize;
-    const uiButtonWidthConstrained = canvasSize[0] * (UI_BUTTON_AREA_WIDTH_RATIO - UI_BUTTON_MARGIN_RATIO * 2) <= canvasSize[1] * ((UI_BUTTON_AREA_HEIGHT_RATIO - UI_BUTTON_MARGIN_RATIO * 4) / 3);
-    uiButtonSize = uiButtonWidthConstrained ? (canvasSize[0] * (UI_BUTTON_AREA_WIDTH_RATIO - UI_BUTTON_MARGIN_RATIO * 2)) : (canvasSize[1] * ((UI_BUTTON_AREA_HEIGHT_RATIO - UI_BUTTON_MARGIN_RATIO * 4) / 3));
+    const uiButtonWidthConstrained = canvasSize[0] * (UI_BUTTON_AREA_WIDTH_RATIO - UI_BUTTON_MARGIN_RATIO * 2) <= canvasSize[1] * ((UI_BUTTON_AREA_HEIGHT_RATIO - UI_BUTTON_MARGIN_RATIO * 5) / 4);
+    uiButtonSize = uiButtonWidthConstrained ? (canvasSize[0] * (UI_BUTTON_AREA_WIDTH_RATIO - UI_BUTTON_MARGIN_RATIO * 2)) : (canvasSize[1] * ((UI_BUTTON_AREA_HEIGHT_RATIO - UI_BUTTON_MARGIN_RATIO * 5) / 4));
     uiButtonMarginSize = (uiButtonWidthConstrained ? canvasSize[0] : canvasSize[1]) * UI_BUTTON_MARGIN_RATIO;
 
     // score
@@ -179,10 +180,16 @@ export enum UiButtonType {
     None = 200,
     Undo,
     Redo,
-    Reset
+    Reset,
+    WinText,
 }
 export function getUiButtonClick() {
     if (inputHandler.mouseDownEventUnused && inputHandler.mouseButton === 0 && inputHandler.windowCoords !== null) {
+        if (mainLevel.win &&
+            inButtonRect(inputHandler.windowCoords, [uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * 4], uiButtonSize)) {
+            inputHandler.mouseDownEventUnused = false;
+            return UiButtonType.WinText;
+        }
         if (mainLevel.canUndo() &&
             inButtonRect(inputHandler.windowCoords, [uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * 3], uiButtonSize)) {
             inputHandler.mouseDownEventUnused = false;
@@ -450,7 +457,7 @@ const BANNER_FONT_SIZE_RATIO = .6;
 
 // canvasSize is width, height
 export function drawWinMessage(context: CanvasRenderingContext2D, canvasSize: Readonly<number[]>, levelCenter: number[]) {
-    if (!levelDrawer.win) return;
+    if (!levelDrawer.win || winTextHidden) return;
     const winAnim = animationList[AnimationType.Win].length > 0 ? (animationList[AnimationType.Win][0] as AnimationWin) : null;
     if (winAnim === null) {
         console.warn("win animatino is not set");
@@ -516,6 +523,11 @@ const SCORE_VERTICAL_STACK_RATIO = .08;
 const SCORE_MAX_EXPANSION_RATIO = .25;
 const SCORE_MAX_HEARTBREAK_OFFSET_RATIO = 1;
 
+let winTextHidden = false;
+export function toggleWinTextHidden() {
+    winTextHidden = !winTextHidden;
+}
+
 /**
  * draw level number etc.
  * @param context context
@@ -524,22 +536,22 @@ const SCORE_MAX_HEARTBREAK_OFFSET_RATIO = 1;
  */
 export function drawUi(context: CanvasRenderingContext2D) {
     // draw buttons
-    const buttonActive = [mainLevel.canUndo(), mainLevel.canRedo(), mainLevel.canRestart()];
+    const buttonActive = [mainLevel.win, mainLevel.canUndo(), mainLevel.canRedo(), mainLevel.canRestart()];
     context.textAlign = "center";
     context.textBaseline = "middle";
     context.font = `${uiButtonSize * .22}px Recurso`;
     context.fillStyle = PALETTE[3];
     context.strokeStyle = PALETTE[0];
     context.lineWidth = uiButtonSize * .05;
-    for (let i = 0; i < 3; i++) {
+    for (let i = 1; i < 4; i++) {
         context.beginPath();
-        context.roundRect(uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * (3 - i), uiButtonSize, uiButtonSize, uiButtonMarginSize);
+        context.roundRect(uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * (4 - i), uiButtonSize, uiButtonSize, uiButtonMarginSize);
         context.fill();
         context.beginPath();
         if (buttonActive[i]) {
             context.roundRect(
                 uiTopLeft[0] + uiButtonMarginSize + uiButtonSize * UI_BUTTON_SELECTOR_OFFSET_RATIO,
-                uiTopLeft[1] + uiAreaSize[1] - uiButtonMarginSize * (3 - i) - uiButtonSize * (3 - i - UI_BUTTON_SELECTOR_OFFSET_RATIO),
+                uiTopLeft[1] + uiAreaSize[1] - uiButtonMarginSize * (4 - i) - uiButtonSize * (4 - i - UI_BUTTON_SELECTOR_OFFSET_RATIO),
                 uiButtonSize * (1 - UI_BUTTON_SELECTOR_OFFSET_RATIO * 2),
                 uiButtonSize * (1 - UI_BUTTON_SELECTOR_OFFSET_RATIO * 2),
                 uiButtonSize * .05);
@@ -550,6 +562,25 @@ export function drawUi(context: CanvasRenderingContext2D) {
     context.fillText("UNDO", uiTopLeft[0] + uiButtonMarginSize + uiButtonSize / 2, uiTopLeft[1] + uiAreaSize[1] - uiButtonMarginSize * 3 - uiButtonSize * 2.5);
     context.fillText("REDO", uiTopLeft[0] + uiButtonMarginSize + uiButtonSize / 2, uiTopLeft[1] + uiAreaSize[1] - uiButtonMarginSize * 2 - uiButtonSize * 1.5);
     context.fillText("RESET", uiTopLeft[0] + uiButtonMarginSize + uiButtonSize / 2, uiTopLeft[1] + uiAreaSize[1] - uiButtonMarginSize * 1 - uiButtonSize * .5);
+
+    if (buttonActive[0]) {
+        context.fillStyle = PALETTE[0];
+        context.strokeStyle = PALETTE[3];
+        context.beginPath();
+        context.roundRect(uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * 4, uiButtonSize, uiButtonSize, uiButtonMarginSize);
+        context.fill();
+        context.beginPath();
+        context.roundRect(
+            uiTopLeft[0] + uiButtonMarginSize + uiButtonSize * UI_BUTTON_SELECTOR_OFFSET_RATIO,
+            uiTopLeft[1] + uiAreaSize[1] - uiButtonMarginSize * 4 - uiButtonSize * (4 - UI_BUTTON_SELECTOR_OFFSET_RATIO),
+            uiButtonSize * (1 - UI_BUTTON_SELECTOR_OFFSET_RATIO * 2),
+            uiButtonSize * (1 - UI_BUTTON_SELECTOR_OFFSET_RATIO * 2),
+            uiButtonSize * .05);
+        context.stroke();
+        context.fillStyle = PALETTE[3];
+        context.fillText(winTextHidden ? "SHOW" : "HIDE", uiTopLeft[0] + uiButtonMarginSize + uiButtonSize / 2, uiTopLeft[1] + uiAreaSize[1] - uiButtonMarginSize * 4 - uiButtonSize * 3.62);
+        context.fillText("TEXT", uiTopLeft[0] + uiButtonMarginSize + uiButtonSize / 2, uiTopLeft[1] + uiAreaSize[1] - uiButtonMarginSize * 4 - uiButtonSize * 3.38);
+    }
 
     // draw scores
     const winAnim = animationList[AnimationType.Win].length > 0 ? (animationList[AnimationType.Win][0] as AnimationWin) : null;
