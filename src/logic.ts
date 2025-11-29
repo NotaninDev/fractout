@@ -1,4 +1,4 @@
-import { AnimationHeartbreak, animationList, AnimationType, AnimationWin, closeDepthWarning, getUiButtonClick, initialState, InputHandler, inputHandler, lerp, LevelTemplate, registerDepthWarningAnim, registerHeartbreakAnim, registerWinAnim, setWinTextHidden, setZoomCoords, UiButtonType, updateAnimationList, updateZoomState, winTextHidden, zoomCoords } from "./internal";
+import { AnimationHeartbreak, animationList, AnimationType, AnimationWin, closeDepthWarning, getUiButtonClick, inputHandler, LevelTemplate, registerDepthWarningAnim, registerHeartbreakAnim, registerWinAnim, setWinTextHidden, setZoomCoords, UiButtonType, updateAnimationList, updateZoomState, winTextHidden, zoomCoords } from "./internal";
 
 export enum Direction {
     Up = 0,
@@ -7,10 +7,6 @@ export enum Direction {
     Left
 }
 export function getOpposite(direction: Direction) { return ((direction + 2) % 4) as Direction; }
-
-interface Clonable<T> {
-    clone(): T;
-}
 
 /**
  * 
@@ -54,14 +50,6 @@ export function weave<Type>(...vectors: Type[][]): Type[] {
         }
     }
     return accumulator;
-}
-
-function generateRandomArray(size: number, rangeMin: number = 0, rangeMax: number = 1): number[] {
-    const results: number[] = [];
-    for (let i = 0; i < size; i++) {
-        results.push(lerp(rangeMin, rangeMax, Math.random()));
-    }
-    return results;
 }
 
 
@@ -702,10 +690,6 @@ export class Level {
 
         return reverseDiff;
     }
-}
-
-function isDirection(x: any): x is Direction {
-    return typeof x === "number" && x in Direction;
 }
 
 /**

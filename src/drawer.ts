@@ -1,4 +1,4 @@
-import { Level, add, scale, levelNumber, mainLevel, timestepGlobal, BRICK_MAX_DEPTH, Brick, Coordinates, inputHandler, registerZoomAnim, animationList, AnimationType, AnimationZoom, AnimationDepthWarning, closeDepthWarning, Heart, HeartState, editorMode, AnimationHeartbreak, AnimationWin, WinType } from "./internal";
+import { Level, add, scale, mainLevel, timestepGlobal, BRICK_MAX_DEPTH, Brick, Coordinates, inputHandler, registerZoomAnim, animationList, AnimationType, AnimationZoom, AnimationDepthWarning, closeDepthWarning, Heart, HeartState, AnimationHeartbreak, AnimationWin, WinType } from "./internal";
 
 export function lerp(a: number, b: number, t: number) {
     return a * (1 - t) + b * t;
@@ -14,8 +14,6 @@ export function clamp(a: number, b: number, t: number) {
     }
     return Math.min(b, Math.max(a, t));
 }
-
-function toRadian(x: number) { return x * Math.PI / 180; }
 
 export function imageFromName(fileName: string, extension: string = "png"): Promise<HTMLImageElement> {
     return new Promise((resolve, reject) => {
@@ -472,12 +470,6 @@ export function drawLevel(context: CanvasRenderingContext2D) {
 
     context.restore();
 }
-
-const BANNER_HEIGHT_RATIO = 1;
-const BANNER_WIDTH_RATIO = 25;
-const BANNER_GRADIENT_STEP_RATIO = .025;
-const BANNER_DISTANCE_RATIO = 7.2;
-const BANNER_FONT_SIZE_RATIO = .6;
 
 // canvasSize is width, height
 export function drawWinMessage(context: CanvasRenderingContext2D, canvasSize: Readonly<number[]>, levelCenter: number[]) {

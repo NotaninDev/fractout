@@ -1,4 +1,4 @@
-import { Direction, editorMode, coordsWindowToCoordsLevel, setEditorMode, coordsInPlayArea, timestepGlobal } from "./internal";
+import { Direction, editorMode, coordsWindowToCoordsLevel, setEditorMode, coordsInPlayArea } from "./internal";
 
 export class InputHandler {
     blocked: boolean;

@@ -1,4 +1,4 @@
-import { Level, timestepGlobal, add, scale, mainLevel, ZoomType, clamp, inputHandler, zoomCoords, Coordinates, setZoomCoords, updateZoomState, usedZoom, getMessageCoordinates, Heart } from "./internal";
+import { timestepGlobal, mainLevel, ZoomType, clamp, inputHandler, zoomCoords, Coordinates, setZoomCoords, updateZoomState, usedZoom, getMessageCoordinates, Heart } from "./internal";
 
 class Animatable {
     readonly startTime: number;
