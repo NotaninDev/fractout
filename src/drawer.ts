@@ -312,8 +312,8 @@ export function getMessageCoordinates() {
     if (inputHandler.levelCoords === null || !mainLevel.inMap(inputHandler.levelCoords)) {
         return add(rootBrickTopLeft, [rootBrickSize * .27, rootBrickSize * .46]);
     }
-    return add(rootBrickTopLeft, [rootBrickSize * (inputHandler.levelCoords[0] <= .19 ? .06 : (inputHandler.levelCoords[0] >= .68 ? .55 : (inputHandler.levelCoords[0] - .13))),
-    rootBrickSize * (inputHandler.levelCoords[1] + (inputHandler.levelCoords[1] <= .75 ? .14 : -.21))]);
+    return add(rootBrickTopLeft, scale([inputHandler.levelCoords[0] <= .20 ? .02 : (inputHandler.levelCoords[0] >= .66 ? .48 : (inputHandler.levelCoords[0] - .18)),
+    inputHandler.levelCoords[1] + (inputHandler.levelCoords[1] <= .75 ? .14 : -.21)], rootBrickSize));
 }
 
 
@@ -404,10 +404,10 @@ export function drawLevel(context: CanvasRenderingContext2D) {
         const warningAnim = animationList[AnimationType.DepthWarning][0] as AnimationDepthWarning;
         context.textAlign = "left";
         context.textBaseline = "top";
-        context.font = `${18 * textRatio}px Recurso`;
+        context.font = `${20 * textRatio}px MuseoModernoSB`;
         context.fillStyle = PALETTE[3];
-        context.fillRect(warningAnim.coords[0] - 5 * textRatio, warningAnim.coords[1] - 4 * textRatio, 187 * textRatio, 24 * textRatio);
-        context.fillRect(warningAnim.coords[0] + 10 * textRatio, warningAnim.coords[1] + 19 * textRatio, 201 * textRatio, 24 * textRatio);
+        context.fillRect(warningAnim.coords[0] - 5 * textRatio, warningAnim.coords[1] - 4 * textRatio, 196 * textRatio, 24 * textRatio);
+        context.fillRect(warningAnim.coords[0] + 10 * textRatio, warningAnim.coords[1] + 19 * textRatio, 217 * textRatio, 24 * textRatio);
         context.fillStyle = PALETTE[0];
         context.fillText("Too small to select!", warningAnim.coords[0], warningAnim.coords[1]);
         context.fillText("Zoom in to go further", warningAnim.coords[0] + 15 * textRatio, warningAnim.coords[1] + 22 * textRatio);
@@ -483,33 +483,33 @@ export function drawWinMessage(context: CanvasRenderingContext2D, canvasSize: Re
     let fontSize = textRatio * 32;
     context.textAlign = "center";
     context.textBaseline = "middle";
-    context.font = `${fontSize}px Recurso`;
+    context.font = `${fontSize}px MuseoModernoSB`;
     const textOffset = [0, canvasSize[1] * .4 * (1 - winAnim.getMessageTimeRatio())];
     switch (mainLevel.winType) {
         case WinType.AllBroken:
-            drawTextBox(context, "You broke all the hearts!", add(levelCenter, [0, fontSize * -5.6], scale(textOffset, -1)), scale([12.4, 1], fontSize), [3, 3], 0);
-            drawTextBox(context, "Impressive!", add(levelCenter, [0, fontSize * -4.6], scale(textOffset, -1)), scale([6.2, 1], fontSize), [3, 3], textRatio * 3);
+            drawTextBox(context, "You broke all the hearts!", add(levelCenter, [0, fontSize * -5.6], scale(textOffset, -1)), scale([12.4, 1], fontSize), textRatio * 5, textRatio * -3);
+            drawTextBox(context, "Impressive!", add(levelCenter, [0, fontSize * -4.6], scale(textOffset, -1)), scale([6.16, 1], fontSize), textRatio * 5, textRatio * 2);
 
             fontSize = textRatio * 18;
-            context.font = `${fontSize}px Recurso`;
-            drawTextBox(context, "please don't do that to me i'm scared", add(levelCenter, [0, fontSize * -4.2], scale(textOffset, -1)), scale([18.7, 1], fontSize), [3, 3], textRatio * 3);
+            context.font = `${fontSize}px MuseoModernoSB`;
+            drawTextBox(context, "please don't do that to me i'm scared", add(levelCenter, [0, fontSize * -4.2], scale(textOffset, -1)), scale([18.68, 1], fontSize), textRatio * 5, textRatio * 2);
             break;
 
         case WinType.AllFound:
-            drawTextBox(context, "You found all the hearts!", add(levelCenter, [0, fontSize * -5.6], scale(textOffset, -1)), scale([12.4, 1], fontSize), [3, 3], 0);
-            drawTextBox(context, "Amazing!", add(levelCenter, [0, fontSize * -4.6], scale(textOffset, -1)), scale([4.6, 1], fontSize), [3, 3], textRatio * 6);
+            drawTextBox(context, "You found all the hearts!", add(levelCenter, [0, fontSize * -5.6], scale(textOffset, -1)), scale([12.4, 1], fontSize), textRatio * 5, textRatio * -3);
+            drawTextBox(context, "Amazing!", add(levelCenter, [0, fontSize * -4.6], scale(textOffset, -1)), scale([4.94, 1], fontSize), textRatio * 5, textRatio * 1);
             break;
 
         case WinType.AnyPercent:
-            drawTextBox(context, "You found some intact hearts", add(levelCenter, [0, fontSize * -5.6], scale(textOffset, -1)), scale([14.9, 1], fontSize), [3, 3], 0);
-            drawTextBox(context, "and some broken hearts", add(levelCenter, [0, fontSize * -4.6], scale(textOffset, -1)), scale([12.1, 1], fontSize), scale([3, 3], textRatio), 0);
-            drawTextBox(context, "The End...?", add(levelCenter, [0, fontSize * -2.8], scale(textOffset, -1)), scale([5.6, 1], fontSize), [3, 3], 0);
+            drawTextBox(context, "You found some intact hearts", add(levelCenter, [0, fontSize * -5.6], scale(textOffset, -1)), scale([14.7, 1], fontSize), textRatio * 5, textRatio * -3);
+            drawTextBox(context, "and some broken hearts", add(levelCenter, [0, fontSize * -4.62], scale(textOffset, -1)), scale([12.2, 1], fontSize), textRatio * 5, textRatio * -3);
+            drawTextBox(context, "The End...?", add(levelCenter, [0, fontSize * -2.8], scale(textOffset, -1)), scale([5.3, 1], fontSize), textRatio * 5, textRatio * -3);
             break;
     }
     fontSize = textRatio * 24;
-    context.font = `${fontSize}px Recurso`;
-    drawTextBox(context, "Made by Notan", add(levelCenter, [0, fontSize * 8], textOffset), scale([7.4, 1], fontSize), [3, 3], textRatio * 3);
-    const notanBirdCenter = add(levelCenter, scale([5.4, 8], fontSize), textOffset);
+    context.font = `${fontSize}px MuseoModernoSB`;
+    drawTextBox(context, "Made by Notan", add(levelCenter, [0, fontSize * 8], textOffset), scale([8.0, 1], fontSize), textRatio * 5, textRatio * 1);
+    const notanBirdCenter = add(levelCenter, scale([5.32, 8], fontSize), textOffset);
     const creditSquareSize = fontSize * 1.64;
     const notanBirdSize = fontSize * 1.6;
     context.fillStyle = PALETTE[3];
@@ -519,9 +519,12 @@ export function drawWinMessage(context: CanvasRenderingContext2D, canvasSize: Re
     context.drawImage(notanBirdTexture, notanBirdCenter[0] - notanBirdSize / 2, notanBirdCenter[1] - notanBirdSize / 2, notanBirdSize, notanBirdSize);
 }
 
-function drawTextBox(context: CanvasRenderingContext2D, text: string, center: Readonly<number[]>, textSize: Readonly<number[]>, padding: Readonly<number[]>, extraPaddingDown: number) {
+function drawTextBox(context: CanvasRenderingContext2D, text: string, center: Readonly<number[]>, textSize: Readonly<number[]>, paddingUp: number, paddingDown: number, debug: boolean = false) {
+    if (debug && timestepGlobal % 15 === 0) {
+        console.log(center[0] - textSize[0] / 2, center[1] - textSize[1] / 2 - paddingUp, textSize[0], textSize[1] + paddingUp + paddingDown);
+    }
     context.fillStyle = PALETTE[3];
-    context.fillRect(center[0] - textSize[0] / 2 - padding[0], center[1] - textSize[1] / 2 - padding[1], textSize[0] + padding[0] * 2, textSize[1] + padding[1] + extraPaddingDown);
+    context.fillRect(center[0] - textSize[0] / 2, center[1] - textSize[1] / 2 - paddingUp, textSize[0], textSize[1] + paddingUp + paddingDown);
     context.fillStyle = PALETTE[0];
     context.fillText(text, center[0], center[1]);
 }
@@ -553,7 +556,7 @@ export function drawUi(context: CanvasRenderingContext2D) {
     const mouseHoverButton = getUiButtonHover();
     context.textAlign = "center";
     context.textBaseline = "middle";
-    context.font = `${uiButtonSize * .22}px Recurso`;
+    context.font = `${uiButtonSize * .22}px Ubuntu-B`;
     context.fillStyle = PALETTE[3];
     context.strokeStyle = PALETTE[0];
     context.lineWidth = uiButtonSize * .05;
@@ -695,7 +698,7 @@ function drawBrick(context: CanvasRenderingContext2D, x0: number, y0: number, x1
     // draw hearts
     context.textAlign = "center";
     context.textBaseline = "middle";
-    context.font = `${(y1 - y0) * .27}px Recurso`;
+    context.font = `${(y1 - y0) * .27}px MuseoModernoSB`;
     context.fillStyle = PALETTE[3];
     for (const [childIndex, hiddenHeartsSingleLeaf] of hiddenHearts) {
         if (hiddenHeartsSingleLeaf.length === 0) continue;
