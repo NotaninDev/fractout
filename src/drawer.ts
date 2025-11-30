@@ -706,7 +706,7 @@ function drawBrick(context: CanvasRenderingContext2D, x0: number, y0: number, x1
         context.translate(-xCenter, -yCenter);
         if (hiddenHeartsSingleLeaf.length <= 9) {
             for (let i = 0; i < hiddenHeartsSingleLeaf.length; i++) {
-                const scalingFactor = getHeartCenter(i);
+                const scalingFactor = getHeartCenter(i, hiddenHeartsSingleLeaf.length);
                 context.beginPath();
                 context.arc(lerp(x0, x1, scalingFactor[0]), lerp(y0, y1, scalingFactor[1]), (x1 - x0) * .04, 0, Math.PI * 2);
                 context.fill();
@@ -843,7 +843,7 @@ function drawBrokenHearts(context: CanvasRenderingContext2D, x0: number, y0: num
     const heartSize = (x1 - x0) * .12;
     const heartOffset = heartSize * BROKEN_HEART_OFFSET_RATIO;
     for (let i = 0; i < Math.min(hearts.length, 9); i++) {
-        const scalingFactor = getHeartCenter(i);
+        const scalingFactor = getHeartCenter(i, hearts.length);
         const heartbreakAnim = AnimationHeartbreak.heartToAnim.get(hearts[i]);
         const time = heartbreakAnim === undefined ? 1 : heartbreakAnim.getTimeRatio();
         const heartCenterX = lerp(x0, x1, scalingFactor[0]);
@@ -862,22 +862,127 @@ function drawBrokenHearts(context: CanvasRenderingContext2D, x0: number, y0: num
 /**
  * get the scaling factors to get the coordinates of a heart
  * @param i index of the heart within a leaf
+ * @param total total number of hearts on this leaf
  * @returns scaling factors, each element is used in a lerp function; [x, y]
  */
-function getHeartCenter(i: number) {
-    switch (i) {
+function getHeartCenter(i: number, total: number) {
+    if (i >= total) {
+        console.warn(`i=${i} must be smaller than total=${total}`);
+        i = total - 1;
+    }
+    let j: number;
+    switch (total) {
+        case 1:
+            j = 1;
+            break;
+        case 2:
+            j = (i === 0) ? 0 : 2;
+            break;
+        case 4:
+            switch (i) {
+                case 0:
+                    j = 0;
+                    break;
+                case 1:
+                    j = 2;
+                    break;
+                case 2:
+                    j = 7;
+                    break;
+                case 3:
+                default:
+                    j = 8;
+                    break;
+            }
+            break;
+        case 5:
+            switch (i) {
+                case 0:
+                    j = 0;
+                    break;
+                case 1:
+                    j = 1;
+                    break;
+                case 2:
+                    j = 2;
+                    break;
+                case 3:
+                    j = 7;
+                    break;
+                case 4:
+                default:
+                    j = 8;
+                    break;
+            }
+            break;
+        case 6:
+            switch (i) {
+                case 0:
+                    j = 0;
+                    break;
+                case 1:
+                    j = 2;
+                    break;
+                case 2:
+                    j = 4;
+                    break;
+                case 3:
+                    j = 5;
+                    break;
+                case 4:
+                    j = 7;
+                    break;
+                case 5:
+                default:
+                    j = 8;
+                    break;
+            }
+            break;
+        case 7:
+            switch (i) {
+                case 0:
+                case 1:
+                case 2:
+                    j = i;
+                    break;
+                case 3:
+                    j = 4;
+                    break;
+                case 4:
+                    j = 5;
+                    break;
+                case 5:
+                    j = 7;
+                    break;
+                case 6:
+                default:
+                    j = 8;
+                    break;
+            }
+            break;
+        case 8:
+            j = (i === 0) ? 0 : (i + 1);
+            break;
+
+        case 3:
+        case 9:
+        default:
+            j = i;
+            break;
+    }
+    switch (j) {
         case 0:
         case 1:
         case 2:
-            return [.5, .271 - i * .15];
+            return [.5, .271 - j * .15];
         case 3:
         case 4:
         case 5:
         case 6:
-            return [.56 - (i % 2) * .12, .196 - Math.floor((i - 3) / 2) * .15];
+            return [.56 - (j % 2) * .12, .196 - Math.floor((j - 3) / 2) * .15];
         case 7:
         case 8:
-            return [.62 - (i - 7) * .24, .121];
+            return [.62 - (j - 7) * .24, .121];
         default:
             return [0, .1];
     }
