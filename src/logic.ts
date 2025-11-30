@@ -307,7 +307,8 @@ export class Level {
     }
 
     /**
-     * get all bricks and their clickable children when the brick at the given coordinates is clicked
+     * get all bricks and their clickable children when the brick at the given coordinates is clicked.
+     * `Level.updateWin` needs to be called before this function because it uses `Level.heartParents` internally.
      * @param clickCoords the coordinates to get neighboring bricks of
      * @returns map from brick to its clickable children's indices
      */
@@ -383,6 +384,23 @@ export class Level {
                 }
             }
         }
+
+        // remove bricks blocked by hearts
+        for (const [coords, _] of clickables) {
+            const brick = this.getBrickByCoords(coords);
+            if (brick !== null) {
+                const hearts = this.heartParents.get(brick);
+                if (hearts !== undefined) {
+                    for (const heart of hearts) {
+                        if (heart.state === HeartState.Found) {
+                            clickables.delete(coords);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
         return clickables;
     }
 
@@ -451,9 +469,9 @@ export class Level {
                                             this.redoStack.clear();
 
                                             this.moved = true;
-                                            this.clickables = this.getClickablesFromClickCoords(clickCoords);
                                             this.initialZoomCoords = zoomCoords;
                                             this.updateWin(false);
+                                            this.clickables = this.getClickablesFromClickCoords(clickCoords);
                                             updateZoomState();
                                         }
                                     }
