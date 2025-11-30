@@ -1,6 +1,8 @@
 import { Level, PALETTE, initializeDrawer, drawLevel, setBrickSize, drawUi, inputHandler, mainLevels, metaLevel, drawWinMessage, evaluateZoomButtonClick, setUiSize } from "./internal";
 import recursoUrl from "./fonts/recurso-sans/RecursoSans-SemiBold.ttf";
 import ubuntuUrl from "./fonts/ubuntu-font-family-0.83/Ubuntu-M.ttf";
+import museoModernoUrl from "./fonts/MuseoModerno/MuseoModerno-Regular.ttf";
+import museoModernoItalicUrl from "./fonts/MuseoModerno/MuseoModerno-Italic.ttf";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#game_canvas")!;
 const ctx = canvas.getContext("2d")!;
@@ -10,6 +12,8 @@ const ctx = canvas.getContext("2d")!;
 
 let fontRecurso = new FontFace("Recurso", `url(${recursoUrl})`);
 let fontUbuntu = new FontFace("Ubuntu-M", `url(${ubuntuUrl})`);
+let fontMuseoModerno = new FontFace("MuseoModerno", `url(${museoModernoUrl})`);
+let fontMuseoModernoItalic = new FontFace("MuseoModernoI", `url(${museoModernoItalicUrl})`);
 fontRecurso.load().then((font) => {
   document.fonts.add(font);
   console.log(`font ready: ${font.family}`);
@@ -21,6 +25,18 @@ fontUbuntu.load().then((font) => {
   console.log(`font ready: ${font.family}`);
 }, (result) => {
   console.log(`failed loading font Ubuntu: ${result}`);
+});
+fontMuseoModerno.load().then((font) => {
+  document.fonts.add(font);
+  console.log(`font ready: ${font.family}`);
+}, (result) => {
+  console.log(`failed loading font MuseoModerno: ${result}`);
+});
+fontMuseoModernoItalic.load().then((font) => {
+  document.fonts.add(font);
+  console.log(`font ready: ${font.family}`);
+}, (result) => {
+  console.log(`failed loading font MuseoModerno Italic: ${result}`);
 });
 
 export const uiRatio = .18;
