@@ -125,11 +125,12 @@ let scoreWidth: number;
 let scoreTopLeft: Readonly<number[]>;
 export function setUiSize(canvasSize: Readonly<number[]>, center: number[]) {
     // ui buttons
-    uiTopLeft = add(center, [canvasSize[0] * (.5 - UI_BUTTON_AREA_WIDTH_RATIO), canvasSize[1] * -.5]).map(Math.round);
     uiAreaSize = canvasSize;
     const uiButtonWidthConstrained = canvasSize[0] * (UI_BUTTON_AREA_WIDTH_RATIO - UI_BUTTON_MARGIN_RATIO * 2) <= canvasSize[1] * ((UI_BUTTON_AREA_HEIGHT_RATIO - UI_BUTTON_MARGIN_RATIO * 5) / 4);
     uiButtonSize = uiButtonWidthConstrained ? (canvasSize[0] * (UI_BUTTON_AREA_WIDTH_RATIO - UI_BUTTON_MARGIN_RATIO * 2)) : (canvasSize[1] * ((UI_BUTTON_AREA_HEIGHT_RATIO - UI_BUTTON_MARGIN_RATIO * 5) / 4));
     uiButtonMarginSize = (uiButtonWidthConstrained ? canvasSize[0] : canvasSize[1]) * UI_BUTTON_MARGIN_RATIO;
+    uiTopLeft = add(center, [canvasSize[0] * (.5 - UI_BUTTON_AREA_WIDTH_RATIO),
+    -uiButtonMarginSize * 2.5 - uiButtonSize * 2]).map(Math.round);
 
     // score
     scoreHeartBaseSize = Math.min((uiAreaSize[0] * (1 - UI_BUTTON_AREA_WIDTH_RATIO) * SCORE_HEART_WIDTH_RATIO), (uiAreaSize[1] * (1 - SCORE_VERTICAL_MARGIN_RATIO * 2) / (mainLevel.hearts.length - SCORE_VERTICAL_STACK_RATIO * (mainLevel.hearts.length - 1))));
@@ -195,22 +196,22 @@ export function getUiButtonClick() {
 function getUiButtonHover() {
     if (timestepGlobal === 0) return UiButtonType.None;
     if (mainLevel.win &&
-        inButtonRect(inputHandler.windowCoords, [uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * 4], uiButtonSize)) {
+        inButtonRect(inputHandler.windowCoords, add(uiTopLeft, [uiButtonMarginSize, uiButtonMarginSize]), uiButtonSize)) {
         inputHandler.mouseDownEventUnused = false;
         return UiButtonType.WinText;
     }
     if (mainLevel.canUndo() &&
-        inButtonRect(inputHandler.windowCoords, [uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * 3], uiButtonSize)) {
+        inButtonRect(inputHandler.windowCoords, add(uiTopLeft, [uiButtonMarginSize, uiButtonMarginSize + (uiButtonMarginSize + uiButtonSize)]), uiButtonSize)) {
         inputHandler.mouseDownEventUnused = false;
         return UiButtonType.Undo;
     }
     if (mainLevel.canRedo() &&
-        inButtonRect(inputHandler.windowCoords, [uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * 2], uiButtonSize)) {
+        inButtonRect(inputHandler.windowCoords, add(uiTopLeft, [uiButtonMarginSize, uiButtonMarginSize + (uiButtonMarginSize + uiButtonSize) * 2]), uiButtonSize)) {
         inputHandler.mouseDownEventUnused = false;
         return UiButtonType.Redo;
     }
     if (mainLevel.canRestart() &&
-        inButtonRect(inputHandler.windowCoords, [uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * 1], uiButtonSize)) {
+        inButtonRect(inputHandler.windowCoords, add(uiTopLeft, [uiButtonMarginSize, uiButtonMarginSize + (uiButtonMarginSize + uiButtonSize) * 3]), uiButtonSize)) {
         inputHandler.mouseDownEventUnused = false;
         return UiButtonType.Reset;
     }
@@ -562,50 +563,50 @@ export function drawUi(context: CanvasRenderingContext2D) {
     context.lineWidth = uiButtonSize * .05;
     for (let i = 1; i < 4; i++) {
         context.beginPath();
-        context.roundRect(uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * (4 - i), uiButtonSize, uiButtonSize, uiButtonMarginSize);
+        context.roundRect(uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiButtonMarginSize + (uiButtonMarginSize + uiButtonSize) * i, uiButtonSize, uiButtonSize, uiButtonMarginSize);
         context.fill();
         context.beginPath();
         if (buttonActive[i]) {
             if ((mouseHoverButton === UiButtonType.Undo && i === 1) ||
                 (mouseHoverButton === UiButtonType.Redo && i === 2) ||
                 (mouseHoverButton === UiButtonType.Reset && i === 3)) {
-                drawWaveSelector(context, [uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * (4 - i)], uiButtonSize, i === 2 ? 0 : Math.PI, (tempContext: CanvasRenderingContext2D) => {
+                drawWaveSelector(context, add(uiTopLeft, [uiButtonMarginSize, uiButtonMarginSize + (uiButtonMarginSize + uiButtonSize) * i]), uiButtonSize, i === 2 ? 0 : Math.PI, (tempContext: CanvasRenderingContext2D) => {
                     tempContext.strokeStyle = PALETTE[0];
                     tempContext.lineWidth = uiButtonSize * .05;
                     drawButtonSelector(tempContext, [0, 0]);
                 });
             }
             else {
-                drawButtonSelector(context, add(uiTopLeft, [uiButtonMarginSize, uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * (4 - i)]));
+                drawButtonSelector(context, add(uiTopLeft, [uiButtonMarginSize, uiButtonMarginSize + (uiButtonMarginSize + uiButtonSize) * i]));
             }
         }
     }
     context.fillStyle = PALETTE[0];
-    context.fillText("UNDO", uiTopLeft[0] + uiButtonMarginSize + uiButtonSize / 2, uiTopLeft[1] + uiAreaSize[1] - uiButtonMarginSize * 3 - uiButtonSize * 2.5);
-    context.fillText("REDO", uiTopLeft[0] + uiButtonMarginSize + uiButtonSize / 2, uiTopLeft[1] + uiAreaSize[1] - uiButtonMarginSize * 2 - uiButtonSize * 1.5);
-    context.fillText("RESET", uiTopLeft[0] + uiButtonMarginSize + uiButtonSize / 2, uiTopLeft[1] + uiAreaSize[1] - uiButtonMarginSize * 1 - uiButtonSize * .5);
+    context.fillText("UNDO", uiTopLeft[0] + uiButtonMarginSize + uiButtonSize / 2, uiTopLeft[1] + uiButtonMarginSize * 2 + uiButtonSize * 1.5);
+    context.fillText("REDO", uiTopLeft[0] + uiButtonMarginSize + uiButtonSize / 2, uiTopLeft[1] + uiButtonMarginSize * 3 + uiButtonSize * 2.5);
+    context.fillText("RESET", uiTopLeft[0] + uiButtonMarginSize + uiButtonSize / 2, uiTopLeft[1] + uiButtonMarginSize * 4 + uiButtonSize * 3.5);
 
     if (buttonActive[0]) {
         context.fillStyle = PALETTE[0];
         context.strokeStyle = PALETTE[3];
         context.beginPath();
-        context.roundRect(uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * 4, uiButtonSize, uiButtonSize, uiButtonMarginSize);
+        context.roundRect(uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiButtonMarginSize, uiButtonSize, uiButtonSize, uiButtonMarginSize);
         context.fill();
 
         if (mouseHoverButton === UiButtonType.WinText) {
-            drawWaveSelector(context, [uiTopLeft[0] + uiButtonMarginSize, uiTopLeft[1] + uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * 4], uiButtonSize, winTextHidden ? (-Math.PI / 2) : (Math.PI / 2), (tempContext: CanvasRenderingContext2D) => {
+            drawWaveSelector(context, add(uiTopLeft, [uiButtonMarginSize, uiButtonMarginSize]), uiButtonSize, winTextHidden ? (-Math.PI / 2) : (Math.PI / 2), (tempContext: CanvasRenderingContext2D) => {
                 tempContext.strokeStyle = PALETTE[3];
                 tempContext.lineWidth = uiButtonSize * .05;
                 drawButtonSelector(tempContext, [0, 0]);
             });
         }
         else {
-            drawButtonSelector(context, add(uiTopLeft, [uiButtonMarginSize, uiAreaSize[1] - (uiButtonMarginSize + uiButtonSize) * 4]));
+            drawButtonSelector(context, add(uiTopLeft, [uiButtonMarginSize, uiButtonMarginSize]));
         }
 
         context.fillStyle = PALETTE[3];
-        context.fillText(winTextHidden ? "SHOW" : "HIDE", uiTopLeft[0] + uiButtonMarginSize + uiButtonSize / 2, uiTopLeft[1] + uiAreaSize[1] - uiButtonMarginSize * 4 - uiButtonSize * 3.62);
-        context.fillText("TEXT", uiTopLeft[0] + uiButtonMarginSize + uiButtonSize / 2, uiTopLeft[1] + uiAreaSize[1] - uiButtonMarginSize * 4 - uiButtonSize * 3.38);
+        context.fillText(winTextHidden ? "SHOW" : "HIDE", uiTopLeft[0] + uiButtonMarginSize + uiButtonSize / 2, uiTopLeft[1] + uiButtonMarginSize + uiButtonSize * .38);
+        context.fillText("TEXT", uiTopLeft[0] + uiButtonMarginSize + uiButtonSize / 2, uiTopLeft[1] + uiButtonMarginSize + uiButtonSize * .62);
     }
 
     // draw scores
